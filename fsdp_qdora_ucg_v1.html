@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Efficient finetuning of Llama 3 with FSDP QDora on the Uganda Clinical Guidelines using consumer GPU’S</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="fsdp_qdora_ucg_v1_files/libs/clipboard/clipboard.min.js"></script>
+<script src="fsdp_qdora_ucg_v1_files/libs/quarto-html/quarto.js"></script>
+<script src="fsdp_qdora_ucg_v1_files/libs/quarto-html/popper.min.js"></script>
+<script src="fsdp_qdora_ucg_v1_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="fsdp_qdora_ucg_v1_files/libs/quarto-html/anchor.min.js"></script>
+<link href="fsdp_qdora_ucg_v1_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="fsdp_qdora_ucg_v1_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="fsdp_qdora_ucg_v1_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="fsdp_qdora_ucg_v1_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="fsdp_qdora_ucg_v1_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Efficient finetuning of Llama 3 with FSDP QDora on the Uganda Clinical Guidelines using consumer GPU’S</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="background" class="level2">
+<h2 class="anchored" data-anchor-id="background">Background</h2>
+<p>The Ugandan Ministry of Health and its partners published the Uganda Clinical Guidelines to help give practitioners access to the latest up-to-date information on how to diagnose and manage common health conditions in Uganda.</p>
+<p>You can find a link to the Uganda clinical guidelines <a href="https://library.health.go.ug/uganda-clinical-guidelines-2023">here</a>.</p>
+<p>To quote the Clinical guidelines book itself,</p>
+<blockquote class="blockquote">
+<p><strong>What is the aim of the UCG?</strong></p>
+<p>The UCG aims to provide summarized easy-to-use, practical, complete and useful information on how to quickly and correctly diagnose and manage common conditions you are likely to encounter. This will ensure that patients receive the best possible clinical services and obtain prompt and effective relief from or cure of their complaint, thereby making the most appropriate use of scarce diagnostic and clinical resources, including medicines. It should, however, be emphasised that the UCG does not replace or substituteavailable textbooks on the subject.</p>
+</blockquote>
+<blockquote class="blockquote">
+<p><strong>Why is the UCG necessary?</strong></p>
+<p>Medicine is an ever-evolving and expanding field in terms of needs and knowledge. The UCG helps the country to prioritize and effectively use limited resources by guiding the procurement system to ensure the availability of the most needed medicines and supplies. In the context of new knowledge and changing priorities, as a tool, the UCG assists health workers in their daily practice by providing information in an easy-to-follow and practical format.</p>
+</blockquote>
+<p>With this, we are experimenting with fine-tuning a large language model like llama on these guidelines. The hope is that this model can be used as a basis for an assistive tool.</p>
+<p>The Uganda clinical guidelines have over 1000+ pages containing information such as clinical features, causes, differential diagnoses, treatment, and prevention options for many common health complaints in Uganda.</p>
+</section>
+<section id="training" class="level2">
+<h2 class="anchored" data-anchor-id="training">Training</h2>
+<p>I shall be fine-tuning a <code>Llama3</code>70B parameter model using FSDP QDora, an open-source system first introduced in this answer.ai <a href="https://www.answer.ai/posts/2024-04-26-fsdp-qdora-llama3.html">post</a>. This system is an extension of FSDP QLora which is a combination of FSDP and QLora.</p>
+<section id="background-1" class="level3">
+<h3 class="anchored" data-anchor-id="background-1">Background</h3>
+<p>QLora was made possible by 2 advances in neural networks, namely quantization and LORA.</p>
+<section id="quantization" class="level4">
+<h4 class="anchored" data-anchor-id="quantization">Quantization</h4>
+<p>Quantization reduces the number of bits used to represent parameters in a model; here we find ourselves trading off between zero-shot accuracy at inference time and model bits.</p>
+<p>For example, instead of using 32 or 16 bits to store the weights of a neural network, we can use a smaller number of bits, like 4. A 4-bit number is equivalent to (2 x 2 x 2 x 2) and has only 16 possible values.</p>
+<p><em>Tim Dettmers &amp; Luke Zettlemoyer</em> released a paper that showed that they ran an experiment to determine the bit precision that maximizes one-shot learning. We can see that the zero-shot accuracy increases steadily for fixed model bits from 16 up to 4-bit quantization precision. When we reach 3 bits, we can see that the relationship reverses.</p>
+<p>Refer to the image below from the original <a href="https://arxiv.org/pdf/2212.09720">The case for 4-bit precision: k-bit Inference Scaling Laws</a> paper.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="fsdp_qdora_ucg_v1_files/figure-html/9150cc18-7fc3-4873-8989-93966e1455db-1-4919fae0-87c6-4a3d-a7a5-9a5d06a1e46f.png" class="img-fluid figure-img"></p>
+<figcaption class="figure-caption">Bit level scaling laws for mean zero shot accuracy</figcaption>
+</figure>
+</div>
+<p>4-bit precision was shown to be the best precision value that universally optimizes both total model bits and zero-shot accuracy. Tim Dettmers built the <a href="https://huggingface.co/docs/bitsandbytes/main/en/index">bitsandbytes</a> library, making it easy for anyone to create 4-bit quantized models.</p>
+<p>The main drawback of quantization is the fact that once model parameter are quantized they can no longer be updated to learn new information, meaning these can only be used for inference and cannot be fine-tuned to learn new task representations.</p>
+</section>
+<section id="lora-low-rank-adaptation-of-large-language-models" class="level4">
+<h4 class="anchored" data-anchor-id="lora-low-rank-adaptation-of-large-language-models">LORA (Low Rank Adaptation of Large Language Models)</h4>
+<p>Nowadays, we can see a various number of large language models being adapted and used for a variety of downstream tasks. Most of these are developed by taking an off-the-shelf large language model like Llama 3 and further training its parameters, adapting it for specific tasks. Training all of its parameters can be called full fine-tuning.</p>
+<p>Now this is manageable for small models, but think of the Llama3 70B model, which would need at least 140 GB of memory just to store and load the model’s weights. This quickly gets expensive and impractical for anyone outside a well-funded lab. People tried working around this by adapting techniques such as training only some parameters or attaching extra modules trained on the specific task. With this, we only need to store and load the parameters adapted for this specific task, which are generally just a small percentage of the total parameters. We can then load this together with the pre-trained model, resulting in improved efficiency.</p>
+<p>However it was noticed that doing this lead to increased latency due to increased complexity and can also lead to a reduced context length window. We also saw that these methods failed to match the full finetuning performance. Taking inspiration from papers from Armen Aghajanyan, Luke Zettlemoyer, and Sonal Gupta. <a href="http://arxiv.org/abs/2012.13255">Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning</a> etc which showed that despite having a large number of parameters, we do not actually need to change all the parameters to capture new information, the parameters lie in a low dimensional space and have low instritic value meaning the change in weights needed to adapt a pretrained model to a new task are of low instrictic value.</p>
+<p>So they proposed freezing the model parameters, then injecting small decomposition matrices that capture the necessary task-specific changes in between the model layers achieving performance that can match full finetuning but without having to retrain all the billions of parameters.</p>
+<p>taking the matrices of the model and creating simpler representations, we take a matrice and replace it with 2 matrices which when combined result in the same thing but with less parameters. Once trained these matrices are injected back into the original weights.</p>
+<p>You can watch Edward Hu one of the authors of the LoRA paper explain it over <a href="https://www.youtube.com/watch?v=DhRoTONcyZE">here</a></p>
+</section>
+<section id="qlora" class="level4">
+<h4 class="anchored" data-anchor-id="qlora">QLoRA</h4>
+<p>Tim Dettmers realized that one can get around the limitation of qunatization and its inability to adjust quantized parameters, he could use LoRa.</p>
+<p>All in all, LoRA enables us to adapt a language model to new task by freezing the current weights, then injecting some small matrices that represent the changes needed to adapt the model to a new tasks into the model. Doing this, we are able to learn the new task while achieving performance comparable to that of full fine-tuning without having to re-train all our parameters drastically reducing the storage and computation needs. If performance doesn’t match, you can always increase the number of trainable parameters and the rank, making LoRA easy to use and adapt in various use cases.</p>
+<p>Tim Dettmers and his team from the University of Washington were able to combine LoRA with quantization by quantizing the pretrained model parameters, then adding these non-quantized low rank adaptor weights learnt using LoRA to the model creating <a href="https://arxiv.org/abs/2305.14314">QLoRA</a>. With this, they were able to train a 65B parameter (130 GB unquantized) model on a 48GB card while maintaining 16-bit precision performance. QloRA keeps the main models quantized weights frozen, then updates gradients by passing them through these quantized weights learning which gradients to learn update, then using these to update the small adaptor weights.</p>
+<p>QloRA introduced a number of innovations which reduce memory use without sacrificing performance resulting in better LoRA performance. Things like paged optimizers which avoid the memory spikes associated with gradient check pointing when processing a mini batch with a long sequence length.</p>
+</section>
+<section id="peft" class="level4">
+<h4 class="anchored" data-anchor-id="peft">PEFT</h4>
+<p>Huggingface created the <a href="https://huggingface.co/blog/peft">PEFT</a> Parameter-Efficient Fine-Tuning of Billion-Scale Models on Low-Resource Hardware library which enabled training of models using LoRA and QLoRA together with the bitsandbytes library with just a few lines of code making it easy for anyone to do this.</p>
+<p>However there were still a large number of issues for example a single 48GB GPU card can be quite expensive, as 48GB of memory would not be effective enough to store all the model weights, gradient, optimizers and optimization states. Not to mention the model trained has a limited model sequence length limiting the size of the prompts we can pass the model. Inorder to be able to pass our model long text prompts we need to have a model that has seen such long sequences of text during training.</p>
+<p>Passing our model long sequence texts results in an error as our 48GB GPU wouldnt have enough memory to store all the information about this sequence as all the memory is used to be able to store just the model weights. Memory constraints also limit the batch size leading to increased training times as we can only pass our model a small number of examples at a go.</p>
+</section>
+<section id="fsdp" class="level4">
+<h4 class="anchored" data-anchor-id="fsdp">FSDP</h4>
+<p>What if we could use multiple GPU’s for training, could this help us get around our memory constraints ?</p>
+<p>We could split our model into and train some layers of each GPU. In our previous example of training a 65GB model (130GB), if we used 8 24GB GPU’s, we could split up our 130GB among 8 and put 16.5 GB on each 24GB card. This is what our <code>device_map=auto</code> in huggingface transformers does. However this has a limitation as this training process does not happen in parallel meaning it waits for the training on one device to finish then trains the next in that order. This doesnt really full take advantage of our multiple GPU’s.</p>
+<p>We could try Distributed Data Parallel, <a href="https://docs.pytorch.org/tutorials/intermediate/ddp_tutorial.html">DDP</a> which enables us to do parallel training with each GPU processing a different batch of data, the only downside was that we need to the full version of the model weights and optimizer states onto each GPU while leaving enough memory to store all the other data from the training process, meaning for our 65GB model, we would still need the Individual GPUs to be able to store each model on a single GPU etc not solving our problem of resource constraints.</p>
+<p>How can we get the best of best worlds, being able to split like with <code>device_map=auto</code> and train our model on multiple GPU’s in parallel like in DDP.</p>
+<p>This is where FSDP, <a href="https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html">Fully Sharded Data Parallel</a> from the PyTorch team comes in handy. FSDP Shards model parameters, gradients and optimizer states across various GPU’s.</p>
+<p>FSDP will copy all the parameters required to compute gradients during its forward pass are gathered as unsharded parameters. The gradients are then computed and sharded after. The optimizer finally updates the sharded parameters with sharded gradients resulting in new sharded optimizer states.</p>
+<p>The sharded gradients are distributed across our GPU’s allowing each shard to do it own local update.</p>
+<p>In short, the gradients computed are for all parameters but since the parameters have been sharded across different devices, we have to redistubute the parameters across all devices so that each local shard can make updates based on the calculated gradients spoecific to it</p>
+<p>FSDP was shown to have identical results as the standard data parallel methods while being memory efficient. This finally gave us the ability to train our large model on cards smaller than the individual model given a number of them.</p>
+</section>
+<section id="fsdp_qlora" class="level4">
+<h4 class="anchored" data-anchor-id="fsdp_qlora">FSDP_QLoRA</h4>
+<p>Now FSDP does a good job helping us split our tasks among different workers, but even then using 8 24GB GPU’s which would still be cost prohibitive especially if you are going to experiment alot. The team at answer.ai, bitsandbytes and huggingface theorized that we could even do this by combining FSDP with QLoRA. Jeremy and Titus Von Keller from huggingface linked up to try bring FSDP and QLora together. Their goal was to explore, understand and document any issues arising when combining the 2 libraries.</p>
+<p>You can read about their thought processes and how they came up with this in their introductory FSDP_QLORA blog <a href="https://www.answer.ai/posts/2024-03-06-fsdp-qlora.html#first-steps">post</a>. You can do a deep dive into their implementation <a href="https://www.answer.ai/posts/2024-03-14-fsdp-qlora-deep-dive">here</a></p>
+<p>The team at answer.ai and bitsandbytes experimented with using quantized parameters that are stored in a selectable data type which is the same data type as the computation type of the model.</p>
+<p>fsdp only supports floating point data types, as neural network operations such as gradient calculations primarily work or produce results which are floating point data types, but quantization libraries store quantized weights as integer data types. This is because quantization involves moving the values from fp32 / fp16 to int8/int4 format Using integer data types instead of floating point saves memory for example when we got from using 32 or 16 bits which are stored as fp32 format to int8 (8 bit format)</p>
+<p>the solution from Jeremy and Titus was to store the quantized parameters in the a selectable storage data type which should be the same computation type as the model, basically they store the qunatized weights as floating point values but preserve the quantization effect/benefits through storing these floating ppint values using discrete value levels constraining the values to quantized ranges or the discrete values.</p>
+<p>Here i mean that say we have 8 discrete values specifically -1.000, -0.714, -0.429, -0.143, +0.143, +0.429, +0.714, or +1.000., with 8 discrete levels, every single weight in your model must be exactly one of those 8 specific values: -1.000, -0.714, -0.429, -0.143, +0.143, +0.429, +0.714, or +1.000. No other values are allowed.</p>
+<p>So if your original neural network had weights like:</p>
+<p>-0.891 → gets mapped to -1.000 (closest discrete level) -0.502 → gets mapped to -0.429 0.025 → gets mapped to +0.143 0.891 → gets mapped to +1.000</p>
+<p>But they soon hit another wall when they noticed that FSDP wasnt quite copying the quantized state infromation needed for each shard to run the model.FSDP only syncs pytorch parameters and buffers, but most quantization libraries store the quantization metadata is usually stored in dictionaries.</p>
+<p>They resolved this by quantizing the model on each GPU so the metadata would remain on that particular GPU. Here they shard the unquanitzed paramaters across the multiple GPU’s then quantize the model on the GPU. They also moved the quantization state from the parameters to the layers, With this the quantizsation state metadata is always available to ensure the information need to dequantize the parameters stayed on the GPU during fsdp shards.</p>
+<p>They then submitted this fsdp_qlora intergartion to the bitsandbytes library as a <a href="https://github.com/bitsandbytes-foundation/bitsandbytes/pull/970">pull request</a>.</p>
+<p>Once again they ran into another bottleneck, since we are now quantizing the model after loading it on the GPU, we need to have our model fit on the GPU then quantize it, which brings about the obvious problem of having a bigger model than the GPU itself in the case of our bigger models like the 70B llama. So we need a method that would allow us to just use the shards while still being able to do accurate quantization so we dont have to load the whole model on a single GPU.</p>
+<p>Jeremy studied meta’s Llama recipes (Now called <a href="https://github.com/meta-llama/llama-cookbook">Llama cookbook</a>), which is a well put together compilation showing how to finetune, do RAG etc with Llama using FSDP. By studying how they work with various libraries like PEFT, Accelerate and Transformer, he was able to come up with a script that could manually complete all the steps needed to fine tune a model.</p>
+<p>Benjamin Warner from answer.ai figured out how to load and discretize the model layer by layer, enabling us to now use qunatize without the full model needing to be on one gpu.He also figured out how to prevent PEFT from moving the quantization state to CPU.</p>
+<p>With this, we are able to combine FSDP’s ability to shard parameters, optimizer states and gradients across our different workers, 4 bit quantization, and use of the small injectable adaptors from LoRA and finally finetune a 70B parameter model on 2 dual 24 GB 3090 Nvidia cards. Doing this, they took advantage of various techniques developed by the open source community and academia such as gradient checkpointing, CPU offloading and Flash attention 2.</p>
+</section>
+<section id="adding-hqq" class="level4">
+<h4 class="anchored" data-anchor-id="adding-hqq">Adding HQQ</h4>
+<p>The bits and bytes way of doing quantization can lead to memory loss. Bits and bytes normalizing its weights to a given consistent range, the parameters are then each placed in a bucket where the bucket breakpoints are based on the assumption that the parameters are normally distributed, but if this isnt the case. In real world scenarios, parameters may not follow a uniform distribution and due to this accuracy may suffer.</p>
+<p>A different approach is to optimize the quantization parameters based of their actual behaviour when passed representative data. These have the advatage that they produce more accurate models as the optimization is based of the actual parameter behaviour, the downside is it can take hours, sometimes days to do this optimization process. HQQ combines the best from both approaches.</p>
+<p>The answer.ai team managed to get FSDP to work with HQQ too. HQQ is created by the team at <a href="https://www.mobiuslabs.com/">Mobius Labs</a> who recently released a pure 1 bit quantized model.</p>
+</section>
+<section id="dora" class="level4">
+<h4 class="anchored" data-anchor-id="dora">DoRA</h4>
+<p>It was noted that in some cases, LoRA fails to match the performance of full finetuning.</p>
+<p>In 2024, The DoRA: Weight Decomposed Low-Rank Adaptation paper was put out. Here they introduce a novel weight decomposition analysis and use it to investigate the inherent difference between LoRA and full finetuning.</p>
+<p>To improve LoRA and bring it closer to Full Training performance, they propose DoRA which reparametizes the pre-trained weights into 2 components, Magnitude and direction with LoRA being used to make directional updates efficiently minimizing the number of trainable parameters.</p>
+<p>It was shown that LoRA and full finetuning have different learning patterns for the weight updates while DoRA and Full training have similar learning behaviour. DoRA was shown to outperform LoRA on multiple datasets while maintaining the latency of LoRA.</p>
+</section>
+<section id="llama-pro" class="level4">
+<h4 class="anchored" data-anchor-id="llama-pro">Llama-Pro</h4>
+<p>In the Llama-pro: Progressive LLama with block expansion, Large language models are enhanced using a technique called block expansion.</p>
+<p>This technique strategically adds Transformer blocks in between the neural network layers, to improve model specialization without sacrificing existing capabilities. These transformer decoder blocks are trained to learn the new patterns, while the rest of the layers are frozen and quantized.</p>
+</section>
+</section>
+<section id="fsdp_qdora" class="level3">
+<h3 class="anchored" data-anchor-id="fsdp_qdora">FSDP_QDoRA</h3>
+<p>Answer.ai’s implementation of FSDP_QDoRA closely mirros the QLoRA implmentation where the pre-trained model weights are frozen, qunatized using bitsandbytes, with the adaptors added on top to learn the new patterns</p>
+<section id="fsdp_qdora-on-the-ugandan-clinical-guidelines" class="level4">
+<h4 class="anchored" data-anchor-id="fsdp_qdora-on-the-ugandan-clinical-guidelines">FSDP_QDoRA on the Ugandan Clinical Guidelines</h4>
+<p>To train with FSDP_QDoRA, we start by cloning the fsdp_qlora <a href="https://github.com/AnswerDotAI/fsdp_qlora">repo</a>.</p>
+<p><code>Clone https://github.com/AnswerDotAI/fsdp_qlora</code> <code>pip install llama-recipes fastcore "transformers!=4.38.*,!=4.39.*" --extra-index-url https://download.pytorch.org/whl/test/cu118</code> as an easy way to get most dependencies (replace 118 with your desired Cuda version)</p>
+<p>Install bitsandbytes <code>pip install bitsandbytes&gt;=0.43.0</code></p>
+<p>Run <code>huggingface-cli login</code> (to access Llama 2)</p>
+<p>Optional Libraries: HQQ quantization: follow the HQQ installation instructions. Our training script uses <code>HQQBackend.ATEN_BACKPROP</code>, so also make sure to build the custom kernels <code>cd hqq/kernels &amp;&amp; python setup_cuda.py install</code>.</p>
+<p>Weights and Biases logging: <code>pip install wandb</code></p>
+<p>Pytorch &gt;= 2.2 is recommended to make use of the native flash-attention 2 kernel.`</p>
+<section id="dataset" class="level5">
+<h5 class="anchored" data-anchor-id="dataset">Dataset</h5>
+<p>We parsed the data from the clinical guidelines, putting it into the Alpaca format, which is one of the expected formats.</p>
+</section>
+</section>
+<section id="code" class="level4">
+<h4 class="anchored" data-anchor-id="code">Code</h4>
+<p>Below is the code i ran after cloning the answer.ai repo</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>time</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#Installations</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install <span class="op">-</span>q transformers accelerate bitsandbytes peft safetensors torch</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install <span class="op">-</span>q sentencepiece protobuf</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install <span class="op">-</span>q scipy</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install llama<span class="op">-</span>recipes fastcore <span class="st">"transformers!=4.38.*,!=4.39.*"</span> <span class="op">--</span>extra<span class="op">-</span>index<span class="op">-</span>url https:<span class="op">//</span>download.pytorch.org<span class="op">/</span>whl<span class="op">/</span>test<span class="op">/</span>cu118</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install bitsandbytes<span class="op">&gt;=</span><span class="fl">0.43.0</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#@title [Optional] Login to the Hugging Face Hub</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">#@markdown Add a token with the "Write Access" role to be able to add your trained concept to the [Library of Concepts](https://huggingface.co/sd-concepts-library)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> huggingface_hub <span class="im">import</span> notebook_login</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>notebook_login()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> peft <span class="im">import</span> PeftModel, PeftConfig</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> warnings</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>bash</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>cd fsdp_qlora</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>python train.py <span class="op">\</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>train_type bnb_dora <span class="op">\</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>model_name meta<span class="op">-</span>llama<span class="op">/</span>Meta<span class="op">-</span>Llama<span class="op">-</span><span class="dv">3</span><span class="op">-</span><span class="dv">70</span><span class="er">B</span> <span class="op">\</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>dataset uganda_clinical_guidelines <span class="op">\</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>dataset_samples <span class="dv">130</span> <span class="op">\</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>batch_size <span class="dv">4</span> <span class="op">\</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>context_length <span class="dv">2048</span> <span class="op">\</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>gradient_accumulation_steps <span class="dv">2</span> <span class="op">\</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>sharding_strategy full_shard <span class="op">\</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>use_gradient_checkpointing true <span class="op">\</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>reentrant_checkpointing true <span class="op">\</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>use_cpu_offload false <span class="op">\</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>use_activation_cpu_offload false <span class="op">\</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>project_name <span class="st">"fsdp-quantized-ucg"</span> \</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>save_model true <span class="op">\</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="op">--</span>output_dir ..<span class="op">/</span>models<span class="op">/</span>Llama<span class="op">-</span><span class="dv">3</span><span class="op">-</span><span class="dv">70</span><span class="er">b</span><span class="op">-</span>ucg<span class="op">-</span>bnb<span class="op">-</span>QDoRA</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>time</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Option 1: Simple inference test</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModelForCausalLM</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> safetensors</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Load the base model and tokenizer</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"meta-llama/Meta-Llama-3-70B"</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_name)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_pretrained(</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    model_name,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    torch_dtype<span class="op">=</span>torch.bfloat16,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    device_map<span class="op">=</span><span class="st">"auto"</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Load your fine-tuned DoRA weights</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Note: This is a simplified approach - actual DoRA loading is more complex</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>dora_weights_path <span class="op">=</span> <span class="st">"models/Llama-3-70b-ucg-bnb-QDoRA/model_state_dict.safetensors"</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Test with a Uganda clinical guidelines question</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> test_model(prompt):</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    inputs <span class="op">=</span> tokenizer(prompt, return_tensors<span class="op">=</span><span class="st">"pt"</span>).to(model.device)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        outputs <span class="op">=</span> model.generate(</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>            <span class="op">**</span>inputs,</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>            max_new_tokens<span class="op">=</span><span class="dv">2000</span>,</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>            temperature<span class="op">=</span><span class="fl">0.7</span>,</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>            do_sample<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>            pad_token_id<span class="op">=</span>tokenizer.eos_token_id</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> tokenizer.decode(outputs[<span class="dv">0</span>][inputs[<span class="st">'input_ids'</span>].shape[<span class="dv">1</span>]:], skip_special_tokens<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> response</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Test prompts for Uganda clinical guidelines</span></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>test_prompts <span class="op">=</span> [</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>    <span class="st">"I have a fever and headache. What should I do?"</span>,</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>    <span class="st">"I have a pain that feels like a muscle strain around my 2 bottom ribs, on the left side, it has been going on for 3 days"</span>,</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">"The patient is a 35-year-old male with a history of hypertension and diabetes. He presents with a 2-week history of progressive dyspnea and lower extremity edema. What is the most likely diagnosis?"</span>,</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">"How should one manage a snake bite?"</span>,</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A patient is presenting fever, lower back pain, joint pains, and fatigue. how should one proceed to diagnose and treat the patient?"</span>,</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A patient is presenting severe headache for the last few days that's worse in the mornings, nausea, vomiting, lightheadedness, and blurry vision. How should one proceed to diagnose and treat the patient?"</span>,</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A patient is presenting pain and swelling in knees and wrists especially in the morning that improves during the day, fatigue, and a rash on the face. How should one proceed to diagnose and treat the patient?"</span>,</span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A patient is presenting excessive thirst, increased urination, blurred vision, and unexplained weight loss. How should one proceed to diagnose and treat the patient?"</span>,</span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Testing your fine-tuned model:"</span>)</span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, prompt <span class="kw">in</span> <span class="bu">enumerate</span>(test_prompts, <span class="dv">1</span>):</span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">--- Test </span><span class="sc">{</span>i<span class="sc">}</span><span class="ss"> ---"</span>)</span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Prompt: </span><span class="sc">{</span>prompt<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Response: </span><span class="sc">{</span>test_model(prompt)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">50</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> huggingface_hub <span class="im">import</span> HfApi, create_repo</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Configuration</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>model_path <span class="op">=</span> <span class="st">"models/Llama-3-70b-ucg-bnb-QDoRA"</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>repo_name <span class="op">=</span> <span class="st">"silvaKenpachi/Llama-3-70b-uganda-clinical-fsdp-qdora"</span>  <span class="co"># Change to your username</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>base_model <span class="op">=</span> <span class="st">"meta-llama/Meta-Llama-3-70B"</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Create repository</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>api <span class="op">=</span> HfApi()</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    create_repo(repo_id<span class="op">=</span>repo_name, private<span class="op">=</span><span class="va">True</span>)  <span class="co"># Set private=False if you want it public</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Created repository: </span><span class="sc">{</span>repo_name<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span>:</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Repository </span><span class="sc">{</span>repo_name<span class="sc">}</span><span class="ss"> already exists"</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Upload all files from your output directory</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>api.upload_folder(</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    folder_path<span class="op">=</span>model_path,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    repo_id<span class="op">=</span>repo_name,</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    repo_type<span class="op">=</span><span class="st">"model"</span>,</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    commit_message<span class="op">=</span><span class="st">"Upload Llama-3-70B QDoRA adapter fine-tuned on Uganda Clinical Guidelines"</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"✅ Model uploaded to: https://huggingface.co/</span><span class="sc">{</span>repo_name<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="1">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">##### Code</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">in</span> `if args[<span class="st">"dataset"</span>] <span class="op">==</span> <span class="st">"alpaca"</span>:</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        dataset <span class="op">=</span> load_dataset(<span class="st">"yahma/alpaca-cleaned"</span>)[<span class="st">'train'</span>]</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> args[<span class="st">"dataset"</span>] <span class="op">==</span> <span class="st">"alpaca_sample"</span>:</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        dataset <span class="op">=</span> load_dataset(<span class="st">"yahma/alpaca-cleaned"</span>, split<span class="op">=</span><span class="ss">f"train[:</span><span class="sc">{</span>args[<span class="st">'dataset_samples'</span>]<span class="sc">}</span><span class="ss">]"</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> args[<span class="st">"dataset"</span>] <span class="op">==</span> <span class="st">"dummy"</span>:` replace `yahma<span class="op">/</span>alpaca<span class="op">-</span>cleaned` <span class="cf">with</span> `silvaKenpachi<span class="op">/</span>uganda<span class="op">-</span>clinical<span class="op">-</span>guidelines` <span class="kw">or</span> the relevant dataset</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>`</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># To add a new model, import the transformer, attention, &amp; MLP layers</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co"># for the wrapping policy and `check_fn` in activation checkpointing</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.models.llama.modeling_llama <span class="im">import</span> (</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    LLAMA_ATTENTION_CLASSES,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    LlamaDecoderLayer,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    LlamaMLP,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.models.mistral.modeling_mistral <span class="im">import</span> (</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    MISTRAL_ATTENTION_CLASSES,</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    MistralDecoderLayer,</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    MistralMLP,</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>)`</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>replace LLAMA_ATTENTION_CLASSES <span class="kw">and</span> MISTRAL_ATTENTION_CLASSES <span class="im">as</span> below</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>`<span class="co"># To add a new model, import the transformer, attention, &amp; MLP layers</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="co"># for the wrapping policy and `check_fn` in activation checkpointing</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.models.llama.modeling_llama <span class="im">import</span> (</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>    LlamaAttention,</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>    LlamaDecoderLayer,</span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>    LlamaMLP,</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.models.mistral.modeling_mistral <span class="im">import</span> (</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>    MistralAttention,</span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>    MistralDecoderLayer,</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>    MistralMLP,</span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>)`</span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a><span class="co">##### change 3</span></span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a><span class="kw">in</span> </span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>`<span class="co"># Wrap the model using LoRA policy from llama-recipes or custom policy:</span></span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a><span class="co"># This checks for lora layers (has weight and requires_grad)</span></span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_wrapping_policy(custom_policy:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, vanilla_policy:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> peft.tuners <span class="im">import</span> PrefixEncoder, PromptEmbedding, PromptEncoder</span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> custom_policy:</span>
+<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> lambda_policy_fn(module):</span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a>            <span class="co"># LoRA and DoRA trainable layers.</span></span>
+<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> (<span class="bu">isinstance</span>(module, nn.Sequential) <span class="kw">and</span> <span class="bu">all</span>(m.weight.requires_grad <span class="cf">for</span> m <span class="kw">in</span> module)) <span class="kw">or</span> (<span class="bu">isinstance</span>(module, (DORALayer, MagnitudeLayer)))</span>
+<span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> lambda_policy_fn(module):</span>
+<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> (</span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a>                <span class="bu">len</span>(<span class="bu">list</span>(module.named_children())) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a>                <span class="kw">and</span> <span class="bu">getattr</span>(module, <span class="st">"weight"</span>, <span class="va">None</span>) <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span></span>
+<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a>                <span class="kw">and</span> module.weight.requires_grad</span>
+<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> self_attn_policy_fn(module):</span>
+<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Check module name is self_attn.</span></span>
+<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">isinstance</span>(module, <span class="bu">tuple</span>((<span class="op">*</span>LLAMA_ATTENTION_CLASSES.values(), <span class="op">*</span>MISTRAL_ATTENTION_CLASSES.values())))` replace         <span class="cf">return</span> <span class="bu">isinstance</span>(module, <span class="bu">tuple</span>((<span class="op">*</span>LLAMA_ATTENTION_CLASSES.values(), <span class="op">*</span>MISTRAL_ATTENTION_CLASSES.values()))) <span class="im">as</span> below  </span>
+<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>`   <span class="cf">return</span> <span class="bu">isinstance</span>(module, (LlamaAttention, MistralAttention))`</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-error">
+<pre><code>NameError: name 'fsdp_qlora' is not defined</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>Below are the different arguments <span class="cf">for</span> the fsdp_qlora function <span class="kw">in</span> our train.py</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>Args:</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        world_size: Number of GPUs to use. <span class="op">-</span><span class="dv">1</span> <span class="op">=</span> <span class="bu">all</span> available GPUs.</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        train_type: <span class="st">"full"</span>, <span class="st">"lora"</span>, <span class="st">"qlora"</span>, <span class="kw">or</span> <span class="st">"custom_qlora"</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        llama_pro_path: Path to the quantized llama pro model</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        batch_size: Batch size per GPU. Effective BS <span class="op">=</span> batch_size <span class="op">*</span> world_size <span class="op">*</span> gradient_accumulation_steps</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        context_length: Max length of <span class="bu">input</span> sequence (<span class="kw">in</span> tokens)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        gradient_accumulation_steps: How many steps to accumulate gradients over (increases effective batch size)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        num_epochs: How many epochs of training to do</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        dataset: alpaca, alpaca_sample (<span class="cf">for</span> a <span class="dv">128</span><span class="op">-</span>sample test) <span class="kw">or</span> <span class="st">"dummy"</span> <span class="cf">for</span> <span class="dv">16</span> <span class="bu">long</span> dummy samples</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        dataset_samples: Number of samples <span class="kw">in</span> an epoch <span class="cf">if</span> using <span class="st">"alpaca_sample"</span> <span class="kw">or</span> <span class="st">"dummy"</span> dataset</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        sharding_strategy: Sharding strategy <span class="cf">for</span> FSDP</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        use_gradient_checkpointing: Use FSDP<span class="st">'s activation checkpointing</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="er">        reentrant_checkpointing: Use re-entrant autograd activation checkpointing. Setting to True can use less GPU memory with BNB QLoRA</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>        use_cpu_offload: Use FSDP<span class="st">'s CPU offloading</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="er">        use_activation_cpu_offload: Use FSDP's activation CPU offloading</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>        low_memory: Load one copy of the model into CPU memory before sharding <span class="cf">with</span> FSDP. For QLoRA, quantizes each layer individually on GPU before placing on CPU.</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        no_sync: Prevent gradient sync until update step. Likely uses more memory. Required <span class="cf">for</span> `use_cpu_offload` <span class="kw">and</span> `gradient_accumulation_steps <span class="op">&gt;</span> <span class="dv">1</span>`</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        precision: Training precision. autocast precisions use mixed precision</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>        model_name: Which model to train <span class="op">-</span> e.g. <span class="st">"TinyLlama/TinyLlama-1.1B-Chat-v1.0"</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        save_model: Save the resulting model</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>        output_dir: Output directory to save the final model to</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>        lora_rank: LoRA rank <span class="cf">for</span> lora<span class="op">/</span>qlora</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>        lora_alpha: LoRA alpha <span class="cf">for</span> lora<span class="op">/</span>qlora</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>        lora_dropout: LoRA dropout <span class="cf">for</span> lora<span class="op">/</span>qlora</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>        lora_target_modules: If <span class="st">'default'</span>, uses peft defaults. Use <span class="st">'all'</span> <span class="cf">for</span> our best guess <span class="cf">for</span> Llama models</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>        verbose: Whether to <span class="bu">print</span> extra info <span class="cf">for</span> debugging</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>        lr: Learning rate</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>        apply_gradient_clipping: Apply gradient norm clipping</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        grad_norm: Gradient norm clipping</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        wd: Weight decay</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        profile_memory: Profile memory usage <span class="cf">for</span> the first few batches. Keep false <span class="cf">for</span> training. May increase memory usage.</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>        optimizer: Optimizer. PyTorch <span class="fl">2.4</span> nightly adds CPU fused Adam<span class="op">/</span>AdamW which should improve offload training speed.</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>        lr_scheduler: Learning Rate Scheduler. linear <span class="kw">and</span> cosine warm up <span class="cf">for</span> <span class="dv">10</span><span class="op">%</span> of training steps.</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>        loading_workers: Number of layers to load <span class="kw">and</span> quantize <span class="kw">in</span> parallel per GPU. Default of <span class="op">-</span><span class="dv">1</span> uses heuristics to <span class="bu">set</span> worker count.</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>        log_to: Where to log output</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        master_addr: For distributed training</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>        master_port: For distributed training, must be the same <span class="cf">for</span> <span class="bu">all</span> processes</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>        seed: Random seed</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>        project_name: For wandb logging</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>        name: For wandb logging</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>        group: For wandb logging</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>        entity: For wandb logging</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>        n_bits: passed to hqq</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>        profiling_output: Output <span class="bu">file</span> <span class="cf">for</span> profiling</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
