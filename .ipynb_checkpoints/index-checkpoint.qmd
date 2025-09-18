@@ -1,0 +1,155 @@
+---
+title: "AI for predictive differential diagnosis"
+subtitle: "Using large language models"
+---
+
+:::{.author-info}
+**Author:** [Silver Rubanza](https://rubanzasilver.com){.author-name}  
+**Affiliation:** [Flexible Functions](https://flexiblefunctions.com), AI Research Lab  
+**Date:** August 19, 2025
+:::
+
+## Overview
+
+This collection of tutorials demonstrates how to build AI systems for predictive differential diagnosis using large language models. We explore both traditional transfer learning approaches and modern efficient fine-tuning techniques, all applied to medical datasets including the Uganda Clinical Guidelines.
+
+### Blog Posts & Tutorials
+
+- **[Text Transfer Learning with ULMFit - Medical LLM V1](sd_ulmfit.ipynb)** - Using fast.ai's text transfer learning to build a language model
+- **[FSDP QDora Tutorial](fsdp_qdora_ucg_v1.ipynb)** - Efficient finetuning of Llama 3 70B with FSDP QDora on the Uganda Clinical Guidelines using consumer GPUs
+
+### What You'll Learn
+
+This comprehensive guide covers:
+
+1. **Traditional Transfer Learning (ULMFit)**
+   - Text classification for medical diagnosis
+   - Fast.ai's ULMFit architecture
+   - Language model pre-training and fine-tuning
+   - Medical text preprocessing techniques
+
+2. **Modern Efficient Fine-tuning (FSDP QDora)**
+   - Quantization techniques and 4-bit precision benefits
+   - LoRA (Low Rank Adaptation) fundamentals
+   - QLoRA innovations for memory efficiency
+   - FSDP (Fully Sharded Data Parallel) for multi-GPU training
+   - DoRA improvements over standard LoRA
+
+3. **Technical Implementation**
+   - Setting up training environments
+   - Dataset preparation (Uganda Clinical Guidelines)
+   - Training configuration and execution
+   - Model inference and testing
+   - Deployment strategies
+
+4. **Practical Results**
+   - Training large models on consumer hardware
+   - Medical question-answering capabilities
+   - Performance comparisons between approaches
+   - Memory efficiency analysis
+
+### Key Technologies
+
+- **ULMFit** - Universal Language Model Fine-tuning for text classification
+- **FSDP QDora** - Combines sharding, quantization, and efficient adaptation
+- **Fast.ai** - Practical deep learning framework
+- **Meta Llama 3 70B** - State-of-the-art base model
+- **Uganda Clinical Guidelines** - Real-world medical dataset
+- **Consumer Hardware** - Accessible GPU requirements
+- **HuggingFace Integration** - Easy model sharing and deployment
+
+### Hardware Requirements
+
+**For ULMFit Tutorial:**
+- **Minimum**: Single GPU with 8GB+ memory
+- **Recommended**: RTX 3080/4080 or similar
+- **Memory**: ~16GB total GPU memory
+
+**For FSDP QDora Tutorial:**
+- **Minimum**: 2x 24GB GPUs (RTX 3090 or similar)
+- **Recommended**: Multiple high-memory GPUs for faster training
+- **Memory**: ~48GB total GPU memory for 70B model training
+
+### Dataset: Uganda Clinical Guidelines
+
+The Uganda Clinical Guidelines contain over 1000 pages of medical information including:
+- Clinical features and symptoms
+- Diagnostic procedures
+- Treatment protocols
+- Prevention strategies
+- Common health conditions in Uganda
+
+This makes it an ideal dataset for training medical AI assistants that can provide evidence-based clinical guidance for predictive differential diagnosis.
+
+### Why These Approaches Matter
+
+**Traditional ML Challenges:**
+- Limited context understanding
+- Poor generalization to unseen medical conditions
+- Requires extensive feature engineering
+- Difficulty handling complex medical language
+
+**Modern LLM Advantages:**
+- **Contextual Understanding** - Grasp complex medical relationships
+- **Few-shot Learning** - Adapt to new conditions with minimal data
+- **Natural Language Processing** - Handle unstructured medical text
+- **Scalable Training** - Efficient techniques for large models
+
+### Comparison: ULMFit vs FSDP QDora
+
+| Aspect | ULMFit | FSDP QDora |
+|--------|---------|------------|
+| Model Size | ~100M parameters | 70B parameters |
+| Training Time | Hours | Days |
+| Hardware Needs | Single GPU | Multiple GPUs |
+| Performance | Good for classification | Excellent for generation |
+| Use Case | Specific diagnostic tasks | General medical AI |
+
+### Getting Started
+
+Choose your learning path based on your goals and hardware:
+
+**Start with ULMFit** if you:
+- Have limited GPU resources
+- Want to learn transfer learning fundamentals
+- Need a classification-focused approach
+- Prefer faster training cycles
+
+**Begin with FSDP QDora** if you:
+- Have access to multiple high-end GPUs
+- Want state-of-the-art performance
+- Need generative capabilities
+- Are building comprehensive medical AI systems
+
+---
+
+### Tutorials
+
+1. **[Text Transfer Learning with ULMFit - Medical LLM V1](sd_ulmfit.ipynb)** - Learn how to use fast.ai's text transfer learning to build a medical language model from scratch
+
+2. **[Efficient Finetuning of Llama 3 with FSDP QDora - Medical LLM V3](fsdp_qdora_ucg_v1.ipynb)** - See how to efficiently finetune Llama 3 70B with FSDP QDora on the Uganda Clinical Guidelines using consumer GPUs
+
+---
+
+### About
+
+**[Silver Rubanza](https://rubanzasilver.com)** is a machine learning engineer and founder of **[Flexible Functions](https://flexiblefunctions.com)**, an AI research lab focused on making advanced AI techniques accessible to researchers and practitioners worldwide, with a particular emphasis on healthcare applications.
+
+### Prerequisites
+
+**For ULMFit Tutorial:**
+- Basic Python and machine learning knowledge
+- Familiarity with fast.ai library
+- Understanding of text classification concepts
+
+**For FSDP QDora Tutorial:**
+- Familiarity with PyTorch and transformers
+- Basic understanding of distributed training concepts
+- Access to multiple GPUs (24GB+ recommended)
+- Python environment with CUDA support
+
+---
+
+*Begin your journey into AI for predictive differential diagnosis:*
+- *Start with [ULMFit](sd_ulmfit.ipynb) for a foundational approach*
+- *Advance to [FSDP QDora](fsdp_qdora_ucg_v1.ipynb) for cutting-edge techniques*

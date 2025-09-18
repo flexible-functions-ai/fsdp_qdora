@@ -1,0 +1,40 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Efficient Finetuning of Llama 3 70B with FSDP QDora"
+  description: "Training Llama 3 70B on Uganda Clinical Guidelines using consumer GPUs"
+  
+  navbar:
+    title: "FSDP QDora Tutorial"
+    left:
+      - href: index.qmd
+        text: Home
+      - href: fsdp_qdora_ucg_v1.ipynb
+        text: FSDP QDora Tutorial
+      - href: sd_ulmfit.ipynb
+        text: Text Transfer Learning with ULMFit - Medical LLM V1
+    right:
+      - icon: github
+        href: https://github.com/rubanzasilva
+      - text: "Flexible Functions"
+        href: https://flexiblefunctions.com
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+    code-copy: true
+    fig-width: 8
+    fig-height: 6
+    css: styles.css
+
+jupyter: python3
+
+execute:
+  freeze: auto
+  cache: true

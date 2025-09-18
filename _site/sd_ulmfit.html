@@ -1,0 +1,2191 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Efficient Finetuning of Llama 3 70B with FSDP QDora - Predictive model for differential diagnosis</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" integrity="sha512-c3Nl8+7g4LMSTdrm621y7kf9v3SDPnhxLNhcjFJbKECVnmZHTdo+IRO05sNLTH/D3vA6u1X32ehoLC7WFVdheg==" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script>
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">FSDP QDora Tutorial</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html" rel="" target="">
+ <span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./fsdp_qdora_ucg_v1.html" rel="" target="">
+ <span class="menu-text">FSDP QDora Tutorial</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="./sd_ulmfit.html" rel="" target="" aria-current="page">
+ <span class="menu-text">Text Transfer Learning with ULMFit - Medical LLM V1</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/rubanzasilva" rel="" target=""><i class="bi bi-github" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://flexiblefunctions.com" rel="" target="">
+ <span class="menu-text">Flexible Functions</span></a>
+  </li>  
+</ul>
+            <div class="quarto-navbar-tools">
+</div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#finetuning-a-language-model-and-training-a-classifier" id="toc-finetuning-a-language-model-and-training-a-classifier" class="nav-link active" data-scroll-target="#finetuning-a-language-model-and-training-a-classifier">Finetuning a language model and training a classifier</a></li>
+  <li><a href="#library-and-data-import" id="toc-library-and-data-import" class="nav-link" data-scroll-target="#library-and-data-import">Library and Data import</a>
+  <ul class="collapse">
+  <li><a href="#dataset" id="toc-dataset" class="nav-link" data-scroll-target="#dataset">Dataset</a></li>
+  </ul></li>
+  <li><a href="#approach-1---train-a-text-classifier-using-a-pre-trained-model" id="toc-approach-1---train-a-text-classifier-using-a-pre-trained-model" class="nav-link" data-scroll-target="#approach-1---train-a-text-classifier-using-a-pre-trained-model">Approach 1 - Train a text classifier using a pre-trained model</a>
+  <ul class="collapse">
+  <li><a href="#using-the-high-level-api." id="toc-using-the-high-level-api." class="nav-link" data-scroll-target="#using-the-high-level-api.">Using the high level API.</a></li>
+  <li><a href="#using-the-datablock-api" id="toc-using-the-datablock-api" class="nav-link" data-scroll-target="#using-the-datablock-api">Using the DataBlock API</a></li>
+  </ul></li>
+  <li><a href="#approach-2---ulmfit-approach" id="toc-approach-2---ulmfit-approach" class="nav-link" data-scroll-target="#approach-2---ulmfit-approach">Approach 2 - ULMFiT approach</a>
+  <ul class="collapse">
+  <li><a href="#finetuning-a-language-model-with-my-medical-corpus" id="toc-finetuning-a-language-model-with-my-medical-corpus" class="nav-link" data-scroll-target="#finetuning-a-language-model-with-my-medical-corpus">Finetuning a language model with my medical corpus</a></li>
+  <li><a href="#training-a-text-classifier" id="toc-training-a-text-classifier" class="nav-link" data-scroll-target="#training-a-text-classifier">Training a text classifier</a></li>
+  </ul></li>
+  <li><a href="#conclusion-symptom-based-differential-diagnosis-tool" id="toc-conclusion-symptom-based-differential-diagnosis-tool" class="nav-link" data-scroll-target="#conclusion-symptom-based-differential-diagnosis-tool">Conclusion: Symptom-Based Differential Diagnosis Tool</a>
+  <ul class="collapse">
+  <li><a href="#key-accomplishments" id="toc-key-accomplishments" class="nav-link" data-scroll-target="#key-accomplishments">Key Accomplishments</a></li>
+  <li><a href="#results-and-performance" id="toc-results-and-performance" class="nav-link" data-scroll-target="#results-and-performance">Results and Performance</a></li>
+  <li><a href="#limitations-and-next-steps" id="toc-limitations-and-next-steps" class="nav-link" data-scroll-target="#limitations-and-next-steps">Limitations and Next Steps</a></li>
+  </ul></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Predictive model for differential diagnosis</h1><button type="button" class="btn code-tools-button dropdown-toggle" id="quarto-code-tools-menu" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi"></i> Code</button><ul class="dropdown-menu dropdown-menu-end" aria-labelelledby="quarto-code-tools-menu"><li><a id="quarto-show-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Show All Code</a></li><li><a id="quarto-hide-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Hide All Code</a></li></ul></div></div>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<p><strong>Date:</strong> 6th April 2025.</p>
+<section id="finetuning-a-language-model-and-training-a-classifier" class="level2">
+<h2 class="anchored" data-anchor-id="finetuning-a-language-model-and-training-a-classifier">Finetuning a language model and training a classifier</h2>
+<p>In this notebook, our goal is to develop a machine learning model that can take in a patient’s symptoms as an input and return a list of the top 3 possible classes (diseases) alongside confidence values for each class expressed as probabilities.</p>
+<p>We use 2 approaches here, first we quickly train a model to classifify text based on a pretrained model, then in the 2nd approach we take this a step further using an approach shown in the <a href="https://arxiv.org/abs/1801.06146">ULMFit Paper</a>.</p>
+</section>
+<section id="library-and-data-import" class="level2">
+<h2 class="anchored" data-anchor-id="library-and-data-import">Library and Data import</h2>
+<p>::: {.cell _kg_hide-input=‘true’ _kg_hide-output=‘true’ papermill=‘{“duration”:57.880446,“end_time”:“2025-03-19T04:47:49.195187”,“exception”:false,“start_time”:“2025-03-19T04:46:51.314741”,“status”:“completed”}’ scrolled=‘true’ tags=‘[]’ execution_count=1}</p>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#| code-fold: true</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">#| output: false</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">#| code-summary: "Library Install"</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install seaborn</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install fastkaggle</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install <span class="op">-</span>Uqq fastbook</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install <span class="op">--</span>upgrade pip</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install tqdm</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="op">%</span>pip install kagglehub</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install catboost</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install optuna</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install optuna_distributed</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install openfe</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install xgboost</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install lightgbm</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install h2o</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install polars</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install -q -U autogluon.tabular</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install autogluon</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install wandb</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># %pip install sweetviz</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: seaborn in /home/rubanza/.local/lib/python3.10/site-packages (0.13.2)
+Requirement already satisfied: matplotlib!=3.6.1,&gt;=3.4 in /home/rubanza/.local/lib/python3.10/site-packages (from seaborn) (3.10.0)
+Requirement already satisfied: numpy!=1.24.0,&gt;=1.20 in /home/rubanza/.local/lib/python3.10/site-packages (from seaborn) (2.2.6)
+Requirement already satisfied: pandas&gt;=1.2 in /home/rubanza/.local/lib/python3.10/site-packages (from seaborn) (2.2.3)
+Requirement already satisfied: contourpy&gt;=1.0.1 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (1.3.1)
+Requirement already satisfied: cycler&gt;=0.10 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (0.12.1)
+Requirement already satisfied: pillow&gt;=8 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (11.1.0)
+Requirement already satisfied: pyparsing&gt;=2.3.1 in /usr/lib/python3/dist-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (2.4.7)
+Requirement already satisfied: python-dateutil&gt;=2.7 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (2.9.0.post0)
+Requirement already satisfied: kiwisolver&gt;=1.3.1 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (1.4.8)
+Requirement already satisfied: fonttools&gt;=4.22.0 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (4.55.3)
+Requirement already satisfied: packaging&gt;=20.0 in /home/rubanza/.local/lib/python3.10/site-packages (from matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (24.2)
+Requirement already satisfied: pytz&gt;=2020.1 in /home/rubanza/.local/lib/python3.10/site-packages (from pandas&gt;=1.2-&gt;seaborn) (2024.2)
+Requirement already satisfied: tzdata&gt;=2022.7 in /home/rubanza/.local/lib/python3.10/site-packages (from pandas&gt;=1.2-&gt;seaborn) (2024.2)
+Requirement already satisfied: six&gt;=1.5 in /usr/lib/python3/dist-packages (from python-dateutil&gt;=2.7-&gt;matplotlib!=3.6.1,&gt;=3.4-&gt;seaborn) (1.16.0)
+Note: you may need to restart the kernel to use updated packages.
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: fastkaggle in /home/rubanza/.local/lib/python3.10/site-packages (0.0.8)
+Requirement already satisfied: fastcore&gt;=1.4.5 in /home/rubanza/.local/lib/python3.10/site-packages (from fastkaggle) (1.7.28)
+Requirement already satisfied: kaggle in /home/rubanza/.local/lib/python3.10/site-packages (from fastkaggle) (1.7.4.2)
+Requirement already satisfied: packaging in /home/rubanza/.local/lib/python3.10/site-packages (from fastcore&gt;=1.4.5-&gt;fastkaggle) (24.2)
+Requirement already satisfied: certifi&gt;=14.05.14 in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (2024.12.14)
+Requirement already satisfied: protobuf in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (5.29.2)
+Requirement already satisfied: tqdm in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (4.67.1)
+Requirement already satisfied: setuptools&gt;=21.0.0 in /usr/lib/python3/dist-packages (from kaggle-&gt;fastkaggle) (59.6.0)
+Requirement already satisfied: python-slugify in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (8.0.4)
+Requirement already satisfied: six&gt;=1.10 in /usr/lib/python3/dist-packages (from kaggle-&gt;fastkaggle) (1.16.0)
+Requirement already satisfied: idna in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (3.10)
+Requirement already satisfied: urllib3&gt;=1.15.1 in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (2.3.0)
+Requirement already satisfied: webencodings in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (0.5.1)
+Requirement already satisfied: python-dateutil&gt;=2.5.3 in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (2.9.0.post0)
+Requirement already satisfied: text-unidecode in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (1.3)
+Requirement already satisfied: bleach in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (6.2.0)
+Requirement already satisfied: requests in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (2.32.3)
+Requirement already satisfied: charset-normalizer in /home/rubanza/.local/lib/python3.10/site-packages (from kaggle-&gt;fastkaggle) (3.4.1)
+Note: you may need to restart the kernel to use updated packages.
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+streamlit 1.41.1 requires tenacity&lt;10,&gt;=8.1.0, which is not installed.
+Note: you may need to restart the kernel to use updated packages.
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: pip in /usr/lib/python3/dist-packages (22.0.2)
+Collecting pip
+  Downloading pip-25.2-py3-none-any.whl (1.8 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 4.9 MB/s eta 0:00:0000:0100:010m
+Installing collected packages: pip
+Successfully installed pip-25.2
+Note: you may need to restart the kernel to use updated packages.
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: tqdm in /home/rubanza/.local/lib/python3.10/site-packages (4.67.1)
+Note: you may need to restart the kernel to use updated packages.
+Defaulting to user installation because normal site-packages is not writeable
+Collecting kagglehub
+  Downloading kagglehub-0.3.13-py3-none-any.whl.metadata (38 kB)
+Requirement already satisfied: packaging in /home/rubanza/.local/lib/python3.10/site-packages (from kagglehub) (24.2)
+Requirement already satisfied: pyyaml in /usr/lib/python3/dist-packages (from kagglehub) (5.4.1)
+Requirement already satisfied: requests in /home/rubanza/.local/lib/python3.10/site-packages (from kagglehub) (2.32.3)
+Requirement already satisfied: tqdm in /home/rubanza/.local/lib/python3.10/site-packages (from kagglehub) (4.67.1)
+Requirement already satisfied: charset-normalizer&lt;4,&gt;=2 in /home/rubanza/.local/lib/python3.10/site-packages (from requests-&gt;kagglehub) (3.4.1)
+Requirement already satisfied: idna&lt;4,&gt;=2.5 in /home/rubanza/.local/lib/python3.10/site-packages (from requests-&gt;kagglehub) (3.10)
+Requirement already satisfied: urllib3&lt;3,&gt;=1.21.1 in /home/rubanza/.local/lib/python3.10/site-packages (from requests-&gt;kagglehub) (2.3.0)
+Requirement already satisfied: certifi&gt;=2017.4.17 in /home/rubanza/.local/lib/python3.10/site-packages (from requests-&gt;kagglehub) (2024.12.14)
+Downloading kagglehub-0.3.13-py3-none-any.whl (68 kB)
+Installing collected packages: kagglehub
+Successfully installed kagglehub-0.3.13
+Note: you may need to restart the kernel to use updated packages.</code></pre>
+</div>
+<p>:::</p>
+<p>::: {.cell _kg_hide-input=‘true’ _kg_hide-output=‘true’ execution=‘{“iopub.execute_input”:“2025-03-19T04:47:49.215426Z”,“iopub.status.busy”:“2025-03-19T04:47:49.214747Z”,“iopub.status.idle”:“2025-03-19T04:47:55.452961Z”,“shell.execute_reply”:“2025-03-19T04:47:55.452159Z”}’ papermill=‘{“duration”:6.250503,“end_time”:“2025-03-19T04:47:55.455373”,“exception”:false,“start_time”:“2025-03-19T04:47:49.204870”,“status”:“completed”}’ tags=‘[]’ execution_count=2}</p>
+<details>
+<summary>Library Import</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> seaborn <span class="im">as</span> sns</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># import fastbook</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># fastbook.setup_book()</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># from fastbook import *</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> fastai.tabular.<span class="bu">all</span> <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> numpy <span class="im">import</span> random</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tqdm <span class="im">import</span> tqdm</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ipywidgets <span class="im">import</span> interact</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> fastai.imports <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>np.set_printoptions(linewidth<span class="op">=</span><span class="dv">130</span>)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> fastai.text.<span class="bu">all</span> <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> warnings</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> gc</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pickle</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> joblib <span class="im">import</span> dump, load</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>:::</p>
+<section id="dataset" class="level3">
+<h3 class="anchored" data-anchor-id="dataset">Dataset</h3>
+<p>We use the dataset from <a href="https://www.kaggle.com/datasets/niyarrbarman/symptom2disease">here</a>. This dataset contains 2 columns specifically text and label. Text represents the patient complaint / symptoms in natural language text, while label represents the disease diagnosis.</p>
+<p>The dataset covers 24 diseases namely Psoriasis, Varicose Veins, Typhoid, Chicken pox, Impetigo, Dengue, Fungal infection, Common Cold, Pneumonia, Dimorphic Hemorrhoids, Arthritis, Acne, Bronchial Asthma, Hypertension, Migraine, Cervical spondylosis, Jaundice, Malaria, urinary tract infection, allergy, gastroesophageal reflux disease, drug reaction, peptic ulcer disease and diabetes.</p>
+<p>Our second dataset is just the same exact dataset with the label column dropped.</p>
+<div class="cell" data-execution_count="3">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> kagglehub</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>my_specific_path <span class="op">=</span> <span class="st">"/data/"</span> </span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Download latest version</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> kagglehub.dataset_download(<span class="st">"rubanzasilva/symptoms-disease-no-id"</span>),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>output_path<span class="op">=</span>my_specific_path</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Path to dataset files:"</span>, path)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Warning: Looks like you're using an outdated `kagglehub` version (installed: 0.3.10), please consider upgrading to the latest version (0.3.11).
+Path to dataset files: ('/teamspace/studios/this_studio/.cache/kagglehub/datasets/rubanzasilva/symptoms-disease-no-id/versions/1',)</code></pre>
+</div>
+</div>
+<div class="cell" data-execution_count="4">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>path <span class="op">=</span> Path(<span class="st">'/teamspace/studios/this_studio/.cache/kagglehub/datasets/rubanzasilva/symptoms-disease-no-id/versions/1'</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>path</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="4">
+<pre><code>Path('/teamspace/studios/this_studio/.cache/kagglehub/datasets/rubanzasilva/symptoms-disease-no-id/versions/1')</code></pre>
+</div>
+</div>
+<div class="cell" data-execution_count="5">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="op">!</span>ls <span class="op">/</span>teamspace<span class="op">/</span>studios<span class="op">/</span>this_studio<span class="op">/</span>.cache<span class="op">/</span>kagglehub<span class="op">/</span>datasets<span class="op">/</span>rubanzasilva<span class="op">/</span>symptoms<span class="op">-</span>disease<span class="op">-</span>no<span class="op">-</span><span class="bu">id</span><span class="op">/</span>versions<span class="op">/</span><span class="dv">1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>models  symptom_disease_no_id_col.csv  symptom_no_id.csv</code></pre>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:47:56.665133Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:47:56.664411Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:47:56.727529Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:47:56.726416Z&quot;}" data-papermill="{&quot;duration&quot;:0.075082,&quot;end_time&quot;:&quot;2025-03-19T04:47:56.729746&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:47:56.654664&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="6">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">#symptom_df = pd.read_csv(path_lm/'symptom_synth.csv',index_col=0)</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>symptom_df <span class="op">=</span> pd.read_csv(path<span class="op">/</span><span class="st">'symptom_no_id.csv'</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>sd_df <span class="op">=</span> pd.read_csv(path<span class="op">/</span><span class="st">'symptom_disease_no_id_col.csv'</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>symptom_df.head()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="6">
+<div>
+
+
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">text</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">0</td>
+<td>I have been experiencing a skin rash on my arms, legs, and torso for the past few weeks. It is red, itchy, and covered in dry, scaly patches.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1</td>
+<td>My skin has been peeling, especially on my knees, elbows, and scalp. This peeling is often accompanied by a burning or stinging sensation.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">2</td>
+<td>I have been experiencing joint pain in my fingers, wrists, and knees. The pain is often achy and throbbing, and it gets worse when I move my joints.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">3</td>
+<td>There is a silver like dusting on my skin, especially on my lower back and scalp. This dusting is made up of small scales that flake off easily when I scratch them.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">4</td>
+<td>My nails have small dents or pits in them, and they often feel inflammatory and tender to the touch. Even there are minor rashes on my arms.</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div class="cell" data-execution_count="12">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>sd_df</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="12">
+<div>
+
+
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">label</th>
+<th data-quarto-table-cell-role="th">text</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">0</td>
+<td>Psoriasis</td>
+<td>I have been experiencing a skin rash on my arms, legs, and torso for the past few weeks. It is red, itchy, and covered in dry, scaly patches.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1</td>
+<td>Psoriasis</td>
+<td>My skin has been peeling, especially on my knees, elbows, and scalp. This peeling is often accompanied by a burning or stinging sensation.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">2</td>
+<td>Psoriasis</td>
+<td>I have been experiencing joint pain in my fingers, wrists, and knees. The pain is often achy and throbbing, and it gets worse when I move my joints.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">3</td>
+<td>Psoriasis</td>
+<td>There is a silver like dusting on my skin, especially on my lower back and scalp. This dusting is made up of small scales that flake off easily when I scratch them.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">4</td>
+<td>Psoriasis</td>
+<td>My nails have small dents or pits in them, and they often feel inflammatory and tender to the touch. Even there are minor rashes on my arms.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">1195</td>
+<td>diabetes</td>
+<td>I'm shaking and trembling all over. I've lost my sense of taste and smell, and I'm exhausted. I occasionally get palpitations or a speeding heart.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1196</td>
+<td>diabetes</td>
+<td>Particularly in the crevices of my skin, I have skin rashes and irritations. My skin bruises and cuts take a while to heal as well.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">1197</td>
+<td>diabetes</td>
+<td>I regularly experience these intense urges and the want to urinate. I frequently feel drowsy and lost. I've also significantly lost my vision.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1198</td>
+<td>diabetes</td>
+<td>I have trouble breathing, especially outside. I start to feel hot and start to sweat. I frequently have urinary tract infections and yeast infections.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">1199</td>
+<td>diabetes</td>
+<td>I constantly sneeze and have a dry cough. My infections don't seem to be healing, and I have palpitations. My throat does ache occasionally, but it usually gets better.</td>
+</tr>
+</tbody>
+</table>
+
+<p>1200 rows × 2 columns</p>
+</div>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:47:56.750300Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:47:56.749961Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:47:56.760715Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:47:56.759915Z&quot;}" data-papermill="{&quot;duration&quot;:0.022698,&quot;end_time&quot;:&quot;2025-03-19T04:47:56.762536&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:47:56.739838&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="7">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>symptom_df[<span class="st">'text'</span>].nunique(),sd_df[<span class="st">'text'</span>].nunique()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="7">
+<pre><code>(1153, 1153)</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="approach-1---train-a-text-classifier-using-a-pre-trained-model" class="level1">
+<h1>Approach 1 - Train a text classifier using a pre-trained model</h1>
+<section id="using-the-high-level-api." class="level3">
+<h3 class="anchored" data-anchor-id="using-the-high-level-api.">Using the high level API.</h3>
+<div class="cell" data-execution_count="13">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>dls <span class="op">=</span> TextDataLoaders.from_df(sd_df, path<span class="op">=</span>path, text_col<span class="op">=</span><span class="st">'text'</span>, label_col<span class="op">=</span><span class="st">'label'</span>,valid_pct<span class="op">=</span><span class="fl">0.2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+</div>
+<div class="cell" data-execution_count="14">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>dls.show_batch()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">text</th>
+<th data-quarto-table-cell-role="th">category</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">0</td>
+<td>xxbos xxmaj i 've had this cough that 's been lingering for days and difficulty breathing . xxmaj my fever is xxunk - high , and xxmaj i 'm feeling so weak and tired . xxmaj i 've also been producing a lot of mucus when i cough , and it 's just been so overwhelming to deal with all of these symptoms . xxmaj i 'm getting so xxunk with all of this .</td>
+<td>Bronchial Asthma</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1</td>
+<td>xxbos xxmaj i 've had a persistent cough for days , and i also have breathing problems . xxmaj i 'm so weak and exhausted , and my fever is through the roof . xxmaj it 's been very difficult to xxunk all of these symptoms , and xxmaj i 've also been coughing up a lot of mucus . xxmaj i 'm becoming so xxunk over everything .</td>
+<td>Bronchial Asthma</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">2</td>
+<td>xxbos xxmaj mom , xxmaj xxunk , xxmaj i 've been feeling really tired and weak lately , and xxmaj i 've had this cough that just wo n't go away . xxmaj it 's been hard for me to catch my breath , and my fever has been really high . xxmaj when i cough , xxmaj i 've been producing a lot of mucus .</td>
+<td>Bronchial Asthma</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">3</td>
+<td>xxbos xxmaj i 've been feeling really ill lately . xxmaj i 've had this persistent cough and difficulty breathing , and my fever has been off the xxunk . xxmaj i 'm also feeling extremely exhausted , and xxmaj i 've been producing a lot of mucus when i cough . xxmaj it 's just been so overwhelming to deal with all of these symptoms</td>
+<td>Bronchial Asthma</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">4</td>
+<td>xxbos xxmaj my eyes are red and watery all the time . xxmaj i 've also had this pressure in my sinuses that wo n't go away . xxmaj i 'm always feeling tired and xxmaj i 've been having a lot of trouble breathing . xxmaj i 've also had a lot of gunk in my throat and my lymph nodes are swollen .</td>
+<td>Common Cold</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">5</td>
+<td>xxbos xxmaj i 've been struggling with difficulty breathing , a constant cough , and fatigue . xxmaj my fever is extremely high , and xxmaj i 've been coughing up a lot of thick , mucoid sputum . xxmaj it 's been so hard to deal with all of this , and xxmaj i 'm just feeling so drained and worn out</td>
+<td>Bronchial Asthma</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">6</td>
+<td>xxbos xxmaj my eyes are always red and itchy , and my nose feels all stuffy and congested . i just feel kind of sick and tired all the time , and i keep coughing up all this gunk . xxmaj my throat feels sore and scratchy , and xxmaj i 've noticed that the bumps on my neck are xxunk than usual</td>
+<td>Common Cold</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">7</td>
+<td>xxbos xxmaj i 've been having a really hard time going to the bathroom lately . xxmaj it 's really painful and xxmaj i 'm only able to go every few days . xxmaj there 's also a lot of pain in my anus and around that area . xxmaj my stool has been really bloody and my anus feels really irritated .</td>
+<td>Dimorphic Hemorrhoids</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">8</td>
+<td>xxbos xxmaj i 've been having a tough time with this constant cough , difficulty breathing , and fatigue . xxmaj my fever is high , and xxmaj i 've been coughing up a lot of thick , mucoid sputum . xxmaj it 's all been rather xxunk and exhausting , and xxmaj i 'm feeling quite sick at the xxunk .</td>
+<td>Bronchial Asthma</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell" data-execution_count="15">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>learn <span class="op">=</span> text_classifier_learner(dls, AWD_LSTM, drop_mult<span class="op">=</span><span class="fl">0.5</span>, metrics<span class="op">=</span>accuracy)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="16">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>time</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>learn.fine_tune(<span class="dv">4</span>, <span class="fl">1e-2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>2.804181</td>
+<td>2.557335</td>
+<td>0.416667</td>
+<td>00:10</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>1.833297</td>
+<td>1.869423</td>
+<td>0.750000</td>
+<td>00:23</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>1.475276</td>
+<td>0.858293</td>
+<td>0.866667</td>
+<td>00:23</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>1.134418</td>
+<td>0.542395</td>
+<td>0.887500</td>
+<td>00:24</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>0.890235</td>
+<td>0.494551</td>
+<td>0.895833</td>
+<td>00:24</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>CPU times: user 2min 59s, sys: 23.3 s, total: 3min 22s
+Wall time: 1min 44s</code></pre>
+</div>
+</div>
+<div class="cell" data-execution_count="17">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="op">%%</span>time</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>learn.fine_tune(<span class="dv">4</span>, <span class="fl">1e-2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>0.469106</td>
+<td>0.354821</td>
+<td>0.912500</td>
+<td>00:11</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>0.336313</td>
+<td>0.287105</td>
+<td>0.933333</td>
+<td>00:23</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>0.276779</td>
+<td>0.337557</td>
+<td>0.908333</td>
+<td>00:25</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>0.217946</td>
+<td>0.221962</td>
+<td>0.950000</td>
+<td>00:29</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>0.168664</td>
+<td>0.218064</td>
+<td>0.950000</td>
+<td>00:24</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>CPU times: user 3min 16s, sys: 24.3 s, total: 3min 40s
+Wall time: 1min 54s</code></pre>
+</div>
+</div>
+<div class="cell" data-execution_count="20">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">#learn.show_results()</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="21">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>learn.predict(<span class="st">"I am having a running stomach, fever, general body weakness and have been getting bitten by mosquitoes often"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+<div class="cell-output cell-output-display" data-execution_count="21">
+<pre><code>('Pneumonia',
+ tensor(14),
+ tensor([2.2034e-02, 5.8141e-03, 1.8108e-01, 9.6580e-03, 2.3918e-04, 8.5881e-03,
+         1.1737e-03, 1.5557e-03, 6.9894e-04, 9.1998e-03, 8.3020e-03, 3.2446e-02,
+         7.6944e-02, 1.4794e-02, 2.8349e-01, 1.9956e-04, 7.4991e-02, 4.7742e-03,
+         1.0681e-02, 7.2396e-04, 6.9302e-03, 7.4199e-02, 1.4638e-02, 1.5685e-01]))</code></pre>
+</div>
+</div>
+</section>
+<section id="using-the-datablock-api" class="level3">
+<h3 class="anchored" data-anchor-id="using-the-datablock-api">Using the DataBlock API</h3>
+<p>Alternatively, We can also use the fastai data block API to pass our data into a dataloaders object.</p>
+<div class="cell" data-execution_count="22">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>dis_x <span class="op">=</span> DataBlock(</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    blocks<span class="op">=</span>(TextBlock.from_df(<span class="st">'text'</span>), CategoryBlock),</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    get_x<span class="op">=</span>ColReader(<span class="st">'text'</span>),</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    get_y<span class="op">=</span>ColReader(<span class="st">'label'</span>),</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    splitter<span class="op">=</span>RandomSplitter(valid_pct<span class="op">=</span><span class="fl">0.2</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="24">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>dls <span class="op">=</span> dis_x.dataloaders(sd_df, bs<span class="op">=</span><span class="dv">64</span>)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>dls.show_batch(max_n<span class="op">=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+    <div>
+      <progress value="63" class="" max="1200" style="width:300px; height:20px; vertical-align: middle;"></progress>
+      5.25% [63/1200 00:00&lt;00:00]
+    </div>
+    
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">text</th>
+<th data-quarto-table-cell-role="th">category</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">0</td>
+<td>xxbos xxmaj i 've had this cough that 's been lingering for days and difficulty breathing . xxmaj my fever is xxunk - high , and xxmaj i 'm feeling so weak and tired . xxmaj i 've also been producing a lot of mucus when i cough , and it 's just been so overwhelming to deal with all of these symptoms . xxmaj i 'm getting so xxunk with all of this .</td>
+<td>Bronchial Asthma</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1</td>
+<td>xxbos xxmaj i 've had a persistent cough for days , and i also have breathing problems . xxmaj i 'm so weak and exhausted , and my fever is through the roof . xxmaj it 's been very difficult to xxunk all of these symptoms , and xxmaj i 've also been coughing up a lot of mucus . xxmaj i 'm becoming so xxunk over everything .</td>
+<td>Bronchial Asthma</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</section>
+<section id="approach-2---ulmfit-approach" class="level1">
+<h1>Approach 2 - ULMFiT approach</h1>
+<p>In traditional text transfer learning, We use a pre-trained model called a language model. The model we are also going to use in this example was initially trained on Wikipedia on the task of guessing the next word. We then fine-tuned this model for our disease classification task based on symptoms. We can then use this model for our task of disease classification.</p>
+<p>But the Wikipedia English might differ from medical jargon, so to further improve our model. We can employ a technique shown in the <a href="https://arxiv.org/abs/1801.06146">ULMFIT Paper</a> by Jeremy Howard and Sebastian Ruder. They take the above a step further by fitting the pre-trained model on medical corpus and then using that as a base for our classifier. They noticed that adding this step of training the pretrained model on the task specific corpus gives better result as the model also has better context of the final task.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="sd_ulmfit_files/figure-html/f6bf4a25-1-image.png" class="img-fluid figure-img"></p>
+<figcaption class="figure-caption">Model training process from the ULMTFIT Paper</figcaption>
+</figure>
+</div>
+<section id="finetuning-a-language-model-with-my-medical-corpus" class="level2">
+<h2 class="anchored" data-anchor-id="finetuning-a-language-model-with-my-medical-corpus">Finetuning a language model with my medical corpus</h2>
+<p>Below I define a DataLoader which is an extension of PyTorch’s DataLoaders class, albeit with more functionality. This takes in our data, and prepares it as input for our model, passing it in batches etc.</p>
+<p>The DataLoaders Object allows us to build data objects we can use for training without specifically changing the raw input data.</p>
+<p>The dataloader then acts as input for our models. We also pass in valid_pct=0.2 which samples and uses 20% of our data for validation.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:47:56.816403Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:47:56.816027Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:00.267325Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:00.266311Z&quot;}" data-papermill="{&quot;duration&quot;:3.463704,&quot;end_time&quot;:&quot;2025-03-19T04:48:00.269703&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:47:56.805999&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="8">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">#dls_lm = TextDataLoaders.from_df(symptom_df, path=path, is_lm=True, valid_pct=0.2)</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>dls_lm <span class="op">=</span> TextDataLoaders.from_df(symptom_df, path<span class="op">=</span>path, is_lm<span class="op">=</span><span class="va">True</span>,text_col<span class="op">=</span><span class="st">'text'</span>, valid_pct<span class="op">=</span><span class="fl">0.2</span>)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co">#dls_lm = TextDataLoaders.from_folder(path=path_lm, is_lm=True, valid_pct=0.1)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+</div>
+<p>We then use show_batch to have a look at some of our data.Since, we are guessing the next word in a sentence, you will notice that the targets have shifted one word to thr right in the <em>text_</em> column.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:00.309955Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:00.308833Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:00.463095Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:00.462155Z&quot;}" data-papermill="{&quot;duration&quot;:0.167011,&quot;end_time&quot;:&quot;2025-03-19T04:48:00.465389&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:00.298378&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="9">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>dls_lm.show_batch(max_n<span class="op">=</span><span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>xxbos i have been experiencing a skin rash on my arms , legs , and torso for the past few weeks . xxmaj it is red , itchy , and covered in dry , xxunk patches . xxbos xxmaj i 've been having a lot of trouble going to the bathroom lately . xxmaj it 's been really painful and xxmaj i 've been experiencing pain in my anus . xxmaj my
+there is a strong pain in my back and also behind my eyes . i have also noticed small red spots on my back and neck . xxbos i have a chronic dry cough . i have palpitations and my infections do n't appear to be getting better . i also have a painful throat xxunk , xxunk it does seem to go away . xxbos xxmaj recently , my muscles have
+a lot of problems with my bowel motions recently . xxmaj it 's difficult to go , and it hurts when i do . xxmaj my anus is quite painful , and it has been bleeding whenever i go . xxmaj it 's excruciatingly painful , and xxmaj i 'm quite uneasy . xxbos xxmaj i 'm not in the mood to eat , and swallowing is difficult . i often have
+xxunk . i lack energy , appetite , and frequently feel really exhausted . xxbos xxmaj in xxunk to frequent headaches and blurred vision , increased appetite , a stiff neck , anxiety , irritability , and visual disturbance , i have been having stomach problems , including indigestion and acidity . xxbos xxmaj i 've been really xxunk and ill . xxmaj i 've been suffering from a severe cough and
+i 'm feeling rather ill . xxbos i have developed rashes on my body that are itchy and . i have lost my appetite and feel very tired all day . i feel something is wrong with my body . xxbos i have a tendency to burp and belch regularly . i often get chest discomfort that radiates to my arm , jaw , and neck . xxmaj my chest feels tight
+i have been experiencing a skin rash on my arms , legs , and torso for the past few weeks . xxmaj it is red , itchy , and covered in dry , xxunk patches . xxbos xxmaj i 've been having a lot of trouble going to the bathroom lately . xxmaj it 's been really painful and xxmaj i 've been experiencing pain in my anus . xxmaj my stool
+is a strong pain in my back and also behind my eyes . i have also noticed small red spots on my back and neck . xxbos i have a chronic dry cough . i have palpitations and my infections do n't appear to be getting better . i also have a painful throat xxunk , xxunk it does seem to go away . xxbos xxmaj recently , my muscles have felt
+lot of problems with my bowel motions recently . xxmaj it 's difficult to go , and it hurts when i do . xxmaj my anus is quite painful , and it has been bleeding whenever i go . xxmaj it 's excruciatingly painful , and xxmaj i 'm quite uneasy . xxbos xxmaj i 'm not in the mood to eat , and swallowing is difficult . i often have this
+. i lack energy , appetite , and frequently feel really exhausted . xxbos xxmaj in xxunk to frequent headaches and blurred vision , increased appetite , a stiff neck , anxiety , irritability , and visual disturbance , i have been having stomach problems , including indigestion and acidity . xxbos xxmaj i 've been really xxunk and ill . xxmaj i 've been suffering from a severe cough and sore
+'m feeling rather ill . xxbos i have developed rashes on my body that are itchy and . i have lost my appetite and feel very tired all day . i feel something is wrong with my body . xxbos i have a tendency to burp and belch regularly . i often get chest discomfort that radiates to my arm , jaw , and neck . xxmaj my chest feels tight and</code></pre>
+</div>
+</div>
+<p>From the above, we notice that the texts were processed and split into tokens. It adds some special tokens like xxbos to indicate the beginning of a text and xxmaj to indicate the next word was capitalised.</p>
+<p>We then define a fastai <a href="https://docs.fast.ai/learner.html#learner">learner</a>, which is a fastai class that we can use to handle the training loop. It bundles the essential components needed for training together such as the data, model, the dataloaders, loss functions</p>
+<p>We use the AWD LSTM architecture. We are also going to use accuracy and perplexity (the Exponential of the loss) as our metrics for this example. Furthermore, we also set a weight decay (wd) of 0.1 and apply mixed precision (.to_fp16()) to the learner, which speeds up training on GPU’S with tensor cores.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:00.507104Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:00.506259Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:07.089232Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:07.088393Z&quot;}" data-papermill="{&quot;duration&quot;:6.596158,&quot;end_time&quot;:&quot;2025-03-19T04:48:07.091560&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:00.495402&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="10">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>learn <span class="op">=</span> language_model_learner(dls_lm, AWD_LSTM, metrics<span class="op">=</span>[accuracy, Perplexity()], path<span class="op">=</span>path, wd<span class="op">=</span><span class="fl">0.1</span>).to_fp16()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="phased-finetuning" class="level4">
+<h4 class="anchored" data-anchor-id="phased-finetuning">Phased Finetuning</h4>
+<p>A pre-trained model is one that has already been trained on a large dataset and has learnt general patterns and features in a dataset, which can then be used to fine-tune to a specific task.</p>
+<p>By default, the body of the model is frozen, meaning we won’t be updating the parameters of the body during training. For this case, only the head (first few layers) of the model will train.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:07.133795Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:07.132772Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:09.927839Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:09.926724Z&quot;}" data-papermill="{&quot;duration&quot;:2.808261,&quot;end_time&quot;:&quot;2025-03-19T04:48:09.929938&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:07.121677&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="11">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>learn.fit_one_cycle(<span class="dv">1</span>, <span class="fl">1e-2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">perplexity</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>4.302689</td>
+<td>3.632804</td>
+<td>0.342332</td>
+<td>37.818718</td>
+<td>00:02</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>As shown below, we can use the <em>learn.save</em> to save the state of our model to a file in learn.path/models/ named “filename.pth”. You can use learn.load(‘filename’) to load the content of this file.</p>
+<div class="cell" data-execution_count="12">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Now save the model</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>learn.save(<span class="st">'1epoch'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="12">
+<pre><code>Path('/teamspace/studios/this_studio/.cache/kagglehub/datasets/rubanzasilva/symptoms-disease-no-id/versions/1/models/1epoch.pth')</code></pre>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:10.157653Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:10.157277Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:10.212255Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:10.211253Z&quot;}" data-papermill="{&quot;duration&quot;:0.06808,&quot;end_time&quot;:&quot;2025-03-19T04:48:10.214130&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:10.146050&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="13">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>learn <span class="op">=</span> learn.load(<span class="st">'1epoch'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>After training the head of the model, we unfreeze the rest of the body and finetune it alongside the head, except for our final layer, which converts activations into probabilities of picking each token in our vocabulary.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:10.256549Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:10.255601Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:21.116687Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:21.115847Z&quot;}" data-papermill="{&quot;duration&quot;:10.87435,&quot;end_time&quot;:&quot;2025-03-19T04:48:21.118500&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:10.244150&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="14">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>learn.unfreeze()</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>learn.fit_one_cycle(<span class="dv">5</span>, <span class="fl">1e-3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">perplexity</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>3.587642</td>
+<td>2.953272</td>
+<td>0.398495</td>
+<td>19.168573</td>
+<td>00:01</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>3.262225</td>
+<td>2.604236</td>
+<td>0.434433</td>
+<td>13.520896</td>
+<td>00:01</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>3.005299</td>
+<td>2.404017</td>
+<td>0.464337</td>
+<td>11.067551</td>
+<td>00:01</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>2.831740</td>
+<td>2.315215</td>
+<td>0.482234</td>
+<td>10.127099</td>
+<td>00:01</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td>2.708957</td>
+<td>2.295945</td>
+<td>0.486777</td>
+<td>9.933821</td>
+<td>00:01</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>The model not including the final layers is called an encoder. We use fastai’s <em>save_encoder</em> to save it as shown below.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:21.162940Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:21.162568Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:21.286094Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:21.285308Z&quot;}" data-papermill="{&quot;duration&quot;:0.137549,&quot;end_time&quot;:&quot;2025-03-19T04:48:21.288268&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:21.150719&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="15">
+<details open="">
+<summary>Save the model</summary>
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Now save the model</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>learn.save_encoder(<span class="st">'finetuned'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<p>Now, that our model has been trained to guess or generate the next word in a sentence, we can use it to create or generate new user inputs that start with the below user input text.</p>
+<p>::: {.cell _kg_hide-output=‘true’ execution=‘{“iopub.execute_input”:“2025-03-19T04:48:21.331374Z”,“iopub.status.busy”:“2025-03-19T04:48:21.330502Z”,“iopub.status.idle”:“2025-03-19T04:48:22.239594Z”,“shell.execute_reply”:“2025-03-19T04:48:22.238736Z”}’ papermill=‘{“duration”:0.922662,“end_time”:“2025-03-19T04:48:22.241612”,“exception”:false,“start_time”:“2025-03-19T04:48:21.318950”,“status”:“completed”}’ scrolled=‘true’ tags=‘[]’ execution_count=16}</p>
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>TEXT <span class="op">=</span> <span class="st">"I have running nose, stomach and joint pains"</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>N_WORDS <span class="op">=</span> <span class="dv">40</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>N_SENTENCES <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>preds <span class="op">=</span> [learn.predict(TEXT, N_WORDS, temperature<span class="op">=</span><span class="fl">0.75</span>) </span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>         <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(N_SENTENCES)]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>:::</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:22.270085Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:22.269680Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:22.275013Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:22.273941Z&quot;}" data-papermill="{&quot;duration&quot;:0.021724,&quot;end_time&quot;:&quot;2025-03-19T04:48:22.277293&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:22.255569&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="17">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">"</span>.join(preds))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>i have running nose , stomach and joint pains . My skin is red , and my skin has been really weird . I radiates a lot of diarrhea and suddenly developed a rash on my face . I mucous . It 's been
+i have running nose , stomach and joint pains . My eyes become yellow and I brain sweating . I 've had a high fever , a high fever , and intense fever . I 've been experiencing a lot of back pain</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="training-a-text-classifier" class="level2">
+<h2 class="anchored" data-anchor-id="training-a-text-classifier">Training a text classifier</h2>
+<p>We now gather and pass in data to train our text classifier.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:22.334374Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:22.333432Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:22.344327Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:22.343320Z&quot;}" data-papermill="{&quot;duration&quot;:0.027705,&quot;end_time&quot;:&quot;2025-03-19T04:48:22.346193&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:22.318488&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="18">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co">#symptom_df = pd.read_csv(path_lm/'symptom_synth.csv',index_col=0)</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="co">#sd_df = pd.read_csv(path_lm/'symptom_disease_no_id_col.csv')</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>sd_df.head()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="18">
+<div>
+
+
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">label</th>
+<th data-quarto-table-cell-role="th">text</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">0</td>
+<td>Psoriasis</td>
+<td>I have been experiencing a skin rash on my arms, legs, and torso for the past few weeks. It is red, itchy, and covered in dry, scaly patches.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">1</td>
+<td>Psoriasis</td>
+<td>My skin has been peeling, especially on my knees, elbows, and scalp. This peeling is often accompanied by a burning or stinging sensation.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">2</td>
+<td>Psoriasis</td>
+<td>I have been experiencing joint pain in my fingers, wrists, and knees. The pain is often achy and throbbing, and it gets worse when I move my joints.</td>
+</tr>
+<tr class="even">
+<td data-quarto-table-cell-role="th">3</td>
+<td>Psoriasis</td>
+<td>There is a silver like dusting on my skin, especially on my lower back and scalp. This dusting is made up of small scales that flake off easily when I scratch them.</td>
+</tr>
+<tr class="odd">
+<td data-quarto-table-cell-role="th">4</td>
+<td>Psoriasis</td>
+<td>My nails have small dents or pits in them, and they often feel inflammatory and tender to the touch. Even there are minor rashes on my arms.</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:22.376383Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:22.375474Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:22.382180Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:22.381070Z&quot;}" data-papermill="{&quot;duration&quot;:0.023474,&quot;end_time&quot;:&quot;2025-03-19T04:48:22.384079&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:22.360605&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="19">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check for NaN values in the label column</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(sd_df[<span class="st">'label'</span>].isna().<span class="bu">sum</span>())</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="co"># If there are NaNs, you can drop those rows</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="co">#df = df.dropna(subset=['label'])</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>0</code></pre>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:22.415293Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:22.414421Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:23.182855Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:23.181795Z&quot;}" data-papermill="{&quot;duration&quot;:0.785442,&quot;end_time&quot;:&quot;2025-03-19T04:48:23.184963&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:22.399521&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="20">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co">#dls_clas = TextDataLoaders.from_df(sd_df, path=path,valid='test', text_vocab=dls_lm.vocab)</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>dls_clas <span class="op">=</span> TextDataLoaders.from_df(sd_df, path<span class="op">=</span>path,valid<span class="op">=</span><span class="st">'test'</span>,text_col<span class="op">=</span><span class="st">'text'</span>,label_col<span class="op">=</span><span class="st">'label'</span>, text_vocab<span class="op">=</span>dls_lm.vocab)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Passing in <em>text_vocab=dls_lm.vocab</em> passes in our previously defined vocabulary to our classifier.</p>
+<blockquote class="blockquote">
+<p>To quote the fastai documentation, we have to use the exact same vocabulary as when we were fine-tuning our language model, or the weights learned won’t make any sense.</p>
+</blockquote>
+<p>When you train a language model, it learns to associate specific patterns of numbers (weights) with specific tokens (words or subwords) in your vocabulary.</p>
+<p>Each token is assigned a unique index in the vocabulary, and the model’s internal representations (the weights in the embedding layers and beyond) are organised according to these indices.</p>
+<p>Think of it like a dictionary where each word has a specific page number. The model learns that information about “good” is on page 382, information about “movie” is on page 1593, and so on. These “page numbers” (indices) must remain consistent for the weights to make sense.</p>
+<p>If you were to use a different vocabulary when creating your classifier: .The token “good” might now be on page 746 instead of 382 .The weights the model learned during language model training were specifically tied to the old index (382)</p>
+<p>Now when the classifier sees “good” and looks up page 746, it finds weights that were meant for some completely different word</p>
+<blockquote class="blockquote">
+<p>This mismatch would render the carefully fine-tuned language model weights essentially random from the perspective of the classifier.</p>
+</blockquote>
+<p>::: {.cell _kg_hide-output=‘true’ execution=‘{“iopub.execute_input”:“2025-03-19T04:48:23.241149Z”,“iopub.status.busy”:“2025-03-19T04:48:23.240268Z”,“iopub.status.idle”:“2025-03-19T04:48:23.731089Z”,“shell.execute_reply”:“2025-03-19T04:48:23.730227Z”}’ papermill=‘{“duration”:0.508069,“end_time”:“2025-03-19T04:48:23.733289”,“exception”:false,“start_time”:“2025-03-19T04:48:23.225220”,“status”:“completed”}’ tags=‘[]’ execution_count=21}</p>
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>learn <span class="op">=</span> text_classifier_learner(dls_clas, AWD_LSTM, drop_mult<span class="op">=</span><span class="fl">0.5</span>, metrics<span class="op">=</span>accuracy)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>:::</p>
+<p>We then define our text classifier as shown above. Before training it, we load in the previous encoder.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:23.824528Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:23.823614Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:23.890673Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:23.889502Z&quot;}" data-papermill="{&quot;duration&quot;:0.08367,&quot;end_time&quot;:&quot;2025-03-19T04:48:23.892743&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:23.809073&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="23">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>learn <span class="op">=</span> learn.load_encoder(<span class="st">'finetuned'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="discriminative-learning-rates-gradual-unfreezing" class="level4">
+<h4 class="anchored" data-anchor-id="discriminative-learning-rates-gradual-unfreezing">Discriminative Learning Rates &amp; Gradual Unfreezing</h4>
+<p><strong>Discriminative learning</strong> rates means using different learning rates for different layers of the model.</p>
+<p>For example, earlier layers (closer to the input) might get smaller learning rates, while the later layers (closer to the output) get larger learning rates.</p>
+<p><strong>Gradual unfreezing</strong> is a technique where layers of the model are unfrozen (made trainable) incrementally during fine-tuning. Instead of unfreezing all layers at once, you start by unfreezing only the topmost layers (closest to the output) and train them first.</p>
+<p>Unlike computer vision applications where we unfreeze the model at once, gradual unfreezing has been shown to improve performance for NLP models.</p>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:23.950105Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:23.949218Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:23.955598Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:23.954701Z&quot;}" data-papermill="{&quot;duration&quot;:0.023784,&quot;end_time&quot;:&quot;2025-03-19T04:48:23.957503&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:23.933719&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="24">
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="bu">len</span>(dls_lm.vocab)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display" data-execution_count="24">
+<pre><code>944</code></pre>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:23.987480Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:23.986653Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:25.597416Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:25.596275Z&quot;}" data-papermill="{&quot;duration&quot;:1.627888,&quot;end_time&quot;:&quot;2025-03-19T04:48:25.599341&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:23.971453&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="25">
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>learn.fit_one_cycle(<span class="dv">1</span>, <span class="fl">2e-2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>2.321553</td>
+<td>2.321026</td>
+<td>0.475000</td>
+<td>00:01</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:25.629349Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:25.628825Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:27.048246Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:27.047271Z&quot;}" data-papermill="{&quot;duration&quot;:1.436935,&quot;end_time&quot;:&quot;2025-03-19T04:48:27.050337&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:25.613402&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="26">
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>learn.freeze_to(<span class="op">-</span><span class="dv">2</span>)</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>learn.fit_one_cycle(<span class="dv">1</span>, <span class="bu">slice</span>(<span class="fl">1e-2</span><span class="op">/</span>(<span class="fl">2.6</span><span class="op">**</span><span class="dv">4</span>),<span class="fl">1e-2</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>1.472523</td>
+<td>1.618218</td>
+<td>0.650000</td>
+<td>00:01</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:27.080856Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:27.080493Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:30.847285Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:30.846232Z&quot;}" data-papermill="{&quot;duration&quot;:3.784042,&quot;end_time&quot;:&quot;2025-03-19T04:48:30.849264&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:27.065222&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="27">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>learn.unfreeze()</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>learn.fit_one_cycle(<span class="dv">12</span>, <span class="bu">slice</span>(<span class="fl">1e-3</span><span class="op">/</span>(<span class="fl">2.6</span><span class="op">**</span><span class="dv">4</span>),<span class="fl">1e-3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+<table class="dataframe table table-sm table-striped small" data-quarto-postprocess="true" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">epoch</th>
+<th data-quarto-table-cell-role="th">train_loss</th>
+<th data-quarto-table-cell-role="th">valid_loss</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>1.113426</td>
+<td>1.222948</td>
+<td>0.737500</td>
+<td>00:02</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td>1.053115</td>
+<td>0.926983</td>
+<td>0.804167</td>
+<td>00:02</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>0.977086</td>
+<td>0.776898</td>
+<td>0.816667</td>
+<td>00:02</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>0.886906</td>
+<td>0.666213</td>
+<td>0.845833</td>
+<td>00:02</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td>0.796531</td>
+<td>0.585332</td>
+<td>0.862500</td>
+<td>00:02</td>
+</tr>
+<tr class="even">
+<td>5</td>
+<td>0.705722</td>
+<td>0.525745</td>
+<td>0.875000</td>
+<td>00:02</td>
+</tr>
+<tr class="odd">
+<td>6</td>
+<td>0.627141</td>
+<td>0.489742</td>
+<td>0.887500</td>
+<td>00:02</td>
+</tr>
+<tr class="even">
+<td>7</td>
+<td>0.554622</td>
+<td>0.462450</td>
+<td>0.895833</td>
+<td>00:02</td>
+</tr>
+<tr class="odd">
+<td>8</td>
+<td>0.501509</td>
+<td>0.441437</td>
+<td>0.895833</td>
+<td>00:02</td>
+</tr>
+<tr class="even">
+<td>9</td>
+<td>0.457569</td>
+<td>0.432032</td>
+<td>0.900000</td>
+<td>00:02</td>
+</tr>
+<tr class="odd">
+<td>10</td>
+<td>0.422141</td>
+<td>0.426882</td>
+<td>0.900000</td>
+<td>00:02</td>
+</tr>
+<tr class="even">
+<td>11</td>
+<td>0.397170</td>
+<td>0.433749</td>
+<td>0.895833</td>
+<td>00:02</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2025-03-19T04:48:30.881191Z&quot;,&quot;iopub.status.busy&quot;:&quot;2025-03-19T04:48:30.880497Z&quot;,&quot;iopub.status.idle&quot;:&quot;2025-03-19T04:48:30.933078Z&quot;,&quot;shell.execute_reply&quot;:&quot;2025-03-19T04:48:30.932083Z&quot;}" data-papermill="{&quot;duration&quot;:0.07004,&quot;end_time&quot;:&quot;2025-03-19T04:48:30.935098&quot;,&quot;exception&quot;:false,&quot;start_time&quot;:&quot;2025-03-19T04:48:30.865058&quot;,&quot;status&quot;:&quot;completed&quot;}" data-tags="[]" data-execution_count="28">
+<div class="sourceCode cell-code" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>learn.predict(<span class="st">"I am having a running stomach, fever, general body weakness and have been getting bitten by mosquitoes often"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+<div class="cell-output cell-output-display" data-execution_count="28">
+<pre><code>('Typhoid',
+ tensor(16),
+ tensor([0.0032, 0.0312, 0.0315, 0.0267, 0.0032, 0.0082, 0.0466, 0.0522, 0.0044,
+         0.1089, 0.0058, 0.0142, 0.0568, 0.1298, 0.0267, 0.0030, 0.3377, 0.0080,
+         0.0047, 0.0078, 0.0069, 0.0212, 0.0460, 0.0152]))</code></pre>
+</div>
+</div>
+<div class="cell" data-execution_count="29">
+<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_top_3_predictions(text, learn):</span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get prediction and probabilities</span></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>    _, _, probs <span class="op">=</span> learn.predict(text)</span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get the disease labels vocabulary (second list in vocab)</span></span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a>    disease_vocab <span class="op">=</span> learn.dls.vocab[<span class="dv">1</span>]  <span class="co"># Access the disease labels</span></span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get number of classes</span></span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a>    n_classes <span class="op">=</span> <span class="bu">len</span>(disease_vocab)</span>
+<span id="cb52-10"><a href="#cb52-10" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb52-11"><a href="#cb52-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get indices of top 3 (or fewer) probabilities</span></span>
+<span id="cb52-12"><a href="#cb52-12" aria-hidden="true" tabindex="-1"></a>    n_preds <span class="op">=</span> <span class="bu">min</span>(<span class="dv">3</span>, n_classes)</span>
+<span id="cb52-13"><a href="#cb52-13" aria-hidden="true" tabindex="-1"></a>    top_k_indices <span class="op">=</span> probs.argsort(descending<span class="op">=</span><span class="va">True</span>)[:n_preds]</span>
+<span id="cb52-14"><a href="#cb52-14" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb52-15"><a href="#cb52-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get the actual labels and their probabilities</span></span>
+<span id="cb52-16"><a href="#cb52-16" aria-hidden="true" tabindex="-1"></a>    predictions <span class="op">=</span> []</span>
+<span id="cb52-17"><a href="#cb52-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> idx <span class="kw">in</span> top_k_indices:</span>
+<span id="cb52-18"><a href="#cb52-18" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> disease_vocab[<span class="bu">int</span>(idx)]</span>
+<span id="cb52-19"><a href="#cb52-19" aria-hidden="true" tabindex="-1"></a>        probability <span class="op">=</span> <span class="bu">float</span>(probs[idx])</span>
+<span id="cb52-20"><a href="#cb52-20" aria-hidden="true" tabindex="-1"></a>        predictions.append((label, probability))</span>
+<span id="cb52-21"><a href="#cb52-21" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb52-22"><a href="#cb52-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> predictions</span>
+<span id="cb52-23"><a href="#cb52-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-24"><a href="#cb52-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Function to format and display the predictions nicely</span></span>
+<span id="cb52-25"><a href="#cb52-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_predictions(predictions):</span>
+<span id="cb52-26"><a href="#cb52-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i, (disease, prob) <span class="kw">in</span> <span class="bu">enumerate</span>(predictions, <span class="dv">1</span>):</span>
+<span id="cb52-27"><a href="#cb52-27" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">. </span><span class="sc">{</span>disease<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>prob<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="30">
+<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>test_text <span class="op">=</span> <span class="st">"I am having a running stomach, fever, general body weakness and have been getting bitten by mosquitoes often"</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>predictions <span class="op">=</span> get_top_3_predictions(test_text, learn)</span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Top 3 Predictions:"</span>)</span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>display_predictions(predictions)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Top 3 Predictions:
+1. Typhoid: 0.338
+2. Migraine: 0.130
+3. Hypertension: 0.109</code></pre>
+</div>
+</div>
+<p>The code below allows us to pass in our patient complaints in a batch as shown in the examples below.</p>
+<div class="cell" data-execution_count="9">
+<div class="sourceCode cell-code" id="cb55"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_top_3_predictions(texts, learn):</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Get top 3 predictions for a single text or list of texts</span></span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a><span class="co">        texts: Either a single string or a list of strings</span></span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a><span class="co">        learn: A trained fastai learner for text classification</span></span>
+<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a><span class="co">        </span></span>
+<span id="cb55-9"><a href="#cb55-9" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb55-10"><a href="#cb55-10" aria-hidden="true" tabindex="-1"></a><span class="co">        For a single text: List of (label, probability) tuples</span></span>
+<span id="cb55-11"><a href="#cb55-11" aria-hidden="true" tabindex="-1"></a><span class="co">        For multiple texts: List of lists of (label, probability) tuples</span></span>
+<span id="cb55-12"><a href="#cb55-12" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb55-13"><a href="#cb55-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Handle both single text and list of texts</span></span>
+<span id="cb55-14"><a href="#cb55-14" aria-hidden="true" tabindex="-1"></a>    is_single <span class="op">=</span> <span class="bu">isinstance</span>(texts, <span class="bu">str</span>)</span>
+<span id="cb55-15"><a href="#cb55-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> is_single:</span>
+<span id="cb55-16"><a href="#cb55-16" aria-hidden="true" tabindex="-1"></a>        texts <span class="op">=</span> [texts]</span>
+<span id="cb55-17"><a href="#cb55-17" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb55-18"><a href="#cb55-18" aria-hidden="true" tabindex="-1"></a>    disease_vocab <span class="op">=</span> learn.dls.vocab[<span class="dv">1</span>]</span>
+<span id="cb55-19"><a href="#cb55-19" aria-hidden="true" tabindex="-1"></a>    n_classes <span class="op">=</span> <span class="bu">len</span>(disease_vocab)</span>
+<span id="cb55-20"><a href="#cb55-20" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb55-21"><a href="#cb55-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Try to use DataLoader for batch prediction if model supports it</span></span>
+<span id="cb55-22"><a href="#cb55-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb55-23"><a href="#cb55-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># This is more efficient but might not work with all models</span></span>
+<span id="cb55-24"><a href="#cb55-24" aria-hidden="true" tabindex="-1"></a>        preds <span class="op">=</span> learn.get_preds(dl<span class="op">=</span>learn.dls.test_dl(texts))</span>
+<span id="cb55-25"><a href="#cb55-25" aria-hidden="true" tabindex="-1"></a>        probs_list <span class="op">=</span> preds[<span class="dv">0</span>]  <span class="co"># Tensor of shape [batch_size, n_classes]</span></span>
+<span id="cb55-26"><a href="#cb55-26" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb55-27"><a href="#cb55-27" aria-hidden="true" tabindex="-1"></a>        all_predictions <span class="op">=</span> []</span>
+<span id="cb55-28"><a href="#cb55-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> probs <span class="kw">in</span> probs_list:</span>
+<span id="cb55-29"><a href="#cb55-29" aria-hidden="true" tabindex="-1"></a>            n_preds <span class="op">=</span> <span class="bu">min</span>(<span class="dv">3</span>, n_classes)</span>
+<span id="cb55-30"><a href="#cb55-30" aria-hidden="true" tabindex="-1"></a>            top_k_indices <span class="op">=</span> probs.argsort(descending<span class="op">=</span><span class="va">True</span>)[:n_preds]</span>
+<span id="cb55-31"><a href="#cb55-31" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb55-32"><a href="#cb55-32" aria-hidden="true" tabindex="-1"></a>            predictions <span class="op">=</span> []</span>
+<span id="cb55-33"><a href="#cb55-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> idx <span class="kw">in</span> top_k_indices:</span>
+<span id="cb55-34"><a href="#cb55-34" aria-hidden="true" tabindex="-1"></a>                label <span class="op">=</span> disease_vocab[<span class="bu">int</span>(idx)]</span>
+<span id="cb55-35"><a href="#cb55-35" aria-hidden="true" tabindex="-1"></a>                probability <span class="op">=</span> <span class="bu">float</span>(probs[idx])</span>
+<span id="cb55-36"><a href="#cb55-36" aria-hidden="true" tabindex="-1"></a>                predictions.append((label, probability))</span>
+<span id="cb55-37"><a href="#cb55-37" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb55-38"><a href="#cb55-38" aria-hidden="true" tabindex="-1"></a>            all_predictions.append(predictions)</span>
+<span id="cb55-39"><a href="#cb55-39" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb55-40"><a href="#cb55-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span>:</span>
+<span id="cb55-41"><a href="#cb55-41" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Fall back to individual prediction if batch method fails</span></span>
+<span id="cb55-42"><a href="#cb55-42" aria-hidden="true" tabindex="-1"></a>        all_predictions <span class="op">=</span> []</span>
+<span id="cb55-43"><a href="#cb55-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> text <span class="kw">in</span> texts:</span>
+<span id="cb55-44"><a href="#cb55-44" aria-hidden="true" tabindex="-1"></a>            _, _, probs <span class="op">=</span> learn.predict(text)</span>
+<span id="cb55-45"><a href="#cb55-45" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb55-46"><a href="#cb55-46" aria-hidden="true" tabindex="-1"></a>            n_preds <span class="op">=</span> <span class="bu">min</span>(<span class="dv">3</span>, n_classes)</span>
+<span id="cb55-47"><a href="#cb55-47" aria-hidden="true" tabindex="-1"></a>            top_k_indices <span class="op">=</span> probs.argsort(descending<span class="op">=</span><span class="va">True</span>)[:n_preds]</span>
+<span id="cb55-48"><a href="#cb55-48" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb55-49"><a href="#cb55-49" aria-hidden="true" tabindex="-1"></a>            predictions <span class="op">=</span> []</span>
+<span id="cb55-50"><a href="#cb55-50" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> idx <span class="kw">in</span> top_k_indices:</span>
+<span id="cb55-51"><a href="#cb55-51" aria-hidden="true" tabindex="-1"></a>                label <span class="op">=</span> disease_vocab[<span class="bu">int</span>(idx)]</span>
+<span id="cb55-52"><a href="#cb55-52" aria-hidden="true" tabindex="-1"></a>                probability <span class="op">=</span> <span class="bu">float</span>(probs[idx])</span>
+<span id="cb55-53"><a href="#cb55-53" aria-hidden="true" tabindex="-1"></a>                predictions.append((label, probability))</span>
+<span id="cb55-54"><a href="#cb55-54" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb55-55"><a href="#cb55-55" aria-hidden="true" tabindex="-1"></a>            all_predictions.append(predictions)</span>
+<span id="cb55-56"><a href="#cb55-56" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb55-57"><a href="#cb55-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> all_predictions[<span class="dv">0</span>] <span class="cf">if</span> is_single <span class="cf">else</span> all_predictions</span>
+<span id="cb55-58"><a href="#cb55-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-59"><a href="#cb55-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-60"><a href="#cb55-60" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_predictions(predictions, texts<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb55-61"><a href="#cb55-61" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb55-62"><a href="#cb55-62" aria-hidden="true" tabindex="-1"></a><span class="co">    Display formatted predictions</span></span>
+<span id="cb55-63"><a href="#cb55-63" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb55-64"><a href="#cb55-64" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb55-65"><a href="#cb55-65" aria-hidden="true" tabindex="-1"></a><span class="co">        predictions: Either a list of (label, prob) tuples or a list of such lists</span></span>
+<span id="cb55-66"><a href="#cb55-66" aria-hidden="true" tabindex="-1"></a><span class="co">        texts: Optional list of input texts to display with predictions</span></span>
+<span id="cb55-67"><a href="#cb55-67" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb55-68"><a href="#cb55-68" aria-hidden="true" tabindex="-1"></a>    <span class="co"># If predictions is a list of (label, prob) tuples (single text case)</span></span>
+<span id="cb55-69"><a href="#cb55-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(predictions[<span class="dv">0</span>], <span class="bu">tuple</span>):</span>
+<span id="cb55-70"><a href="#cb55-70" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i, (disease, prob) <span class="kw">in</span> <span class="bu">enumerate</span>(predictions, <span class="dv">1</span>):</span>
+<span id="cb55-71"><a href="#cb55-71" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">. </span><span class="sc">{</span>disease<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>prob<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb55-72"><a href="#cb55-72" aria-hidden="true" tabindex="-1"></a>    <span class="co"># If predictions is a list of lists (batch case)</span></span>
+<span id="cb55-73"><a href="#cb55-73" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb55-74"><a href="#cb55-74" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i, preds <span class="kw">in</span> <span class="bu">enumerate</span>(predictions):</span>
+<span id="cb55-75"><a href="#cb55-75" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> texts:</span>
+<span id="cb55-76"><a href="#cb55-76" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Text: </span><span class="sc">{</span>texts[i][:<span class="dv">50</span>]<span class="sc">}</span><span class="ss">..."</span>)</span>
+<span id="cb55-77"><a href="#cb55-77" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb55-78"><a href="#cb55-78" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Sample #</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss">:"</span>)</span>
+<span id="cb55-79"><a href="#cb55-79" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> j, (disease, prob) <span class="kw">in</span> <span class="bu">enumerate</span>(preds, <span class="dv">1</span>):</span>
+<span id="cb55-80"><a href="#cb55-80" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>j<span class="sc">}</span><span class="ss">. </span><span class="sc">{</span>disease<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>prob<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell" data-execution_count="10">
+<div class="sourceCode cell-code" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Assuming 'learn' is your trained FastAI model</span></span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Example 1: Single input</span></span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a>single_text <span class="op">=</span> <span class="st">"Patient presents with persistent cough, fever of 101°F for 5 days, and fatigue."</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a>single_result <span class="op">=</span> get_top_3_predictions(single_text, learn)</span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-7"><a href="#cb56-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"SINGLE TEXT PREDICTION:"</span>)</span>
+<span id="cb56-8"><a href="#cb56-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Input: </span><span class="sc">{</span>single_text<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb56-9"><a href="#cb56-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Top 3 predictions:"</span>)</span>
+<span id="cb56-10"><a href="#cb56-10" aria-hidden="true" tabindex="-1"></a>display_predictions(single_result)</span>
+<span id="cb56-11"><a href="#cb56-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-12"><a href="#cb56-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-13"><a href="#cb56-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Example 2: Batch input (small batch)</span></span>
+<span id="cb56-14"><a href="#cb56-14" aria-hidden="true" tabindex="-1"></a>batch_texts <span class="op">=</span> [</span>
+<span id="cb56-15"><a href="#cb56-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Patient presents with persistent cough, fever of 101°F for 5 days, and fatigue."</span>,</span>
+<span id="cb56-16"><a href="#cb56-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"7-year-old with red, itchy rash on face and arms, started 2 days after camping trip."</span>,</span>
+<span id="cb56-17"><a href="#cb56-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Adult male with sudden onset of severe headache, described as 'worst headache of my life'."</span>,</span>
+<span id="cb56-18"><a href="#cb56-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Patient reports joint pain in fingers and wrists, worse in the morning, accompanied by stiffness."</span></span>
+<span id="cb56-19"><a href="#cb56-19" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb56-20"><a href="#cb56-20" aria-hidden="true" tabindex="-1"></a>batch_results <span class="op">=</span> get_top_3_predictions(batch_texts, learn)</span>
+<span id="cb56-21"><a href="#cb56-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-22"><a href="#cb56-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">BATCH PREDICTION EXAMPLE:"</span>)</span>
+<span id="cb56-23"><a href="#cb56-23" aria-hidden="true" tabindex="-1"></a>display_predictions(batch_results, batch_texts)</span>
+<span id="cb56-24"><a href="#cb56-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-25"><a href="#cb56-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-26"><a href="#cb56-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Example 3: Processing a medium-sized dataset</span></span>
+<span id="cb56-27"><a href="#cb56-27" aria-hidden="true" tabindex="-1"></a>medium_dataset <span class="op">=</span> [</span>
+<span id="cb56-28"><a href="#cb56-28" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"Patient </span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">: Symptoms include </span><span class="sc">{</span>symptom<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> i, symptom <span class="kw">in</span> <span class="bu">enumerate</span>([</span>
+<span id="cb56-29"><a href="#cb56-29" aria-hidden="true" tabindex="-1"></a>        <span class="st">"fever and sore throat"</span>,</span>
+<span id="cb56-30"><a href="#cb56-30" aria-hidden="true" tabindex="-1"></a>        <span class="st">"chest pain radiating to left arm"</span>,</span>
+<span id="cb56-31"><a href="#cb56-31" aria-hidden="true" tabindex="-1"></a>        <span class="st">"swollen lymph nodes and night sweats"</span>,</span>
+<span id="cb56-32"><a href="#cb56-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">"difficulty breathing and wheezing"</span>,</span>
+<span id="cb56-33"><a href="#cb56-33" aria-hidden="true" tabindex="-1"></a>        <span class="st">"abdominal pain and vomiting"</span>,</span>
+<span id="cb56-34"><a href="#cb56-34" aria-hidden="true" tabindex="-1"></a>        <span class="st">"frequent urination and excessive thirst"</span>,</span>
+<span id="cb56-35"><a href="#cb56-35" aria-hidden="true" tabindex="-1"></a>        <span class="st">"joint pain and morning stiffness"</span>,</span>
+<span id="cb56-36"><a href="#cb56-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">"persistent headache and blurred vision"</span>,</span>
+<span id="cb56-37"><a href="#cb56-37" aria-hidden="true" tabindex="-1"></a>        <span class="st">"unexplained weight loss and fatigue"</span>,</span>
+<span id="cb56-38"><a href="#cb56-38" aria-hidden="true" tabindex="-1"></a>        <span class="st">"skin rash and itching"</span></span>
+<span id="cb56-39"><a href="#cb56-39" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">*</span> <span class="dv">3</span>)  <span class="co"># Repeat symptoms to create 30 samples</span></span>
+<span id="cb56-40"><a href="#cb56-40" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb56-41"><a href="#cb56-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-42"><a href="#cb56-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">PROCESSING MEDIUM DATASET:"</span>)</span>
+<span id="cb56-43"><a href="#cb56-43" aria-hidden="true" tabindex="-1"></a>medium_results <span class="op">=</span> get_top_3_predictions(medium_dataset, learn)</span>
+<span id="cb56-44"><a href="#cb56-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Display first 3 results only for brevity</span></span>
+<span id="cb56-45"><a href="#cb56-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"First 3 results from medium dataset:"</span>)</span>
+<span id="cb56-46"><a href="#cb56-46" aria-hidden="true" tabindex="-1"></a>display_predictions(medium_results[:<span class="dv">3</span>], medium_dataset[:<span class="dv">3</span>])</span>
+<span id="cb56-47"><a href="#cb56-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-48"><a href="#cb56-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-49"><a href="#cb56-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Example 4: Working with DataFrame data</span></span>
+<span id="cb56-50"><a href="#cb56-50" aria-hidden="true" tabindex="-1"></a><span class="co"># This example demonstrates how you might use the function with pandas DataFrame</span></span>
+<span id="cb56-51"><a href="#cb56-51" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb56-52"><a href="#cb56-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-53"><a href="#cb56-53" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a sample DataFrame</span></span>
+<span id="cb56-54"><a href="#cb56-54" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb56-55"><a href="#cb56-55" aria-hidden="true" tabindex="-1"></a>    <span class="st">'patient_id'</span>: <span class="bu">range</span>(<span class="dv">1001</span>, <span class="dv">1006</span>),</span>
+<span id="cb56-56"><a href="#cb56-56" aria-hidden="true" tabindex="-1"></a>    <span class="st">'age'</span>: [<span class="dv">45</span>, <span class="dv">12</span>, <span class="dv">67</span>, <span class="dv">32</span>, <span class="dv">54</span>],</span>
+<span id="cb56-57"><a href="#cb56-57" aria-hidden="true" tabindex="-1"></a>    <span class="st">'gender'</span>: [<span class="st">'M'</span>, <span class="st">'F'</span>, <span class="st">'M'</span>, <span class="st">'F'</span>, <span class="st">'M'</span>],</span>
+<span id="cb56-58"><a href="#cb56-58" aria-hidden="true" tabindex="-1"></a>    <span class="st">'symptoms'</span>: [</span>
+<span id="cb56-59"><a href="#cb56-59" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Persistent dry cough and fever for 3 days"</span>,</span>
+<span id="cb56-60"><a href="#cb56-60" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Skin rash with small fluid-filled blisters, mild fever"</span>,</span>
+<span id="cb56-61"><a href="#cb56-61" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Shortness of breath, chest tightness, wheezing when exercising"</span>,</span>
+<span id="cb56-62"><a href="#cb56-62" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Severe migraine, sensitivity to light, nausea"</span>,</span>
+<span id="cb56-63"><a href="#cb56-63" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Pain and swelling in the right knee, difficulty walking"</span></span>
+<span id="cb56-64"><a href="#cb56-64" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb56-65"><a href="#cb56-65" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb56-66"><a href="#cb56-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-67"><a href="#cb56-67" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">PROCESSING DATAFRAME:"</span>)</span>
+<span id="cb56-68"><a href="#cb56-68" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Sample DataFrame:"</span>)</span>
+<span id="cb56-69"><a href="#cb56-69" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(df[[<span class="st">'patient_id'</span>, <span class="st">'symptoms'</span>]].head())</span>
+<span id="cb56-70"><a href="#cb56-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-71"><a href="#cb56-71" aria-hidden="true" tabindex="-1"></a><span class="co"># Process the symptoms column</span></span>
+<span id="cb56-72"><a href="#cb56-72" aria-hidden="true" tabindex="-1"></a>df_results <span class="op">=</span> get_top_3_predictions(df[<span class="st">'symptoms'</span>].tolist(), learn)</span>
+<span id="cb56-73"><a href="#cb56-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-74"><a href="#cb56-74" aria-hidden="true" tabindex="-1"></a><span class="co"># Add predictions back to the DataFrame</span></span>
+<span id="cb56-75"><a href="#cb56-75" aria-hidden="true" tabindex="-1"></a>df[<span class="st">'top_prediction'</span>] <span class="op">=</span> [pred[<span class="dv">0</span>][<span class="dv">0</span>] <span class="cf">for</span> pred <span class="kw">in</span> df_results]  <span class="co"># First prediction label</span></span>
+<span id="cb56-76"><a href="#cb56-76" aria-hidden="true" tabindex="-1"></a>df[<span class="st">'confidence'</span>] <span class="op">=</span> [pred[<span class="dv">0</span>][<span class="dv">1</span>] <span class="cf">for</span> pred <span class="kw">in</span> df_results]      <span class="co"># First prediction probability</span></span>
+<span id="cb56-77"><a href="#cb56-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-78"><a href="#cb56-78" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">DataFrame with predictions:"</span>)</span>
+<span id="cb56-79"><a href="#cb56-79" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(df[[<span class="st">'patient_id'</span>, <span class="st">'symptoms'</span>, <span class="st">'top_prediction'</span>, <span class="st">'confidence'</span>]])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+    <div>
+      <progress value="0" class="" max="1" style="width:300px; height:20px; vertical-align: middle;"></progress>
+      0.00% [0/1 00:00&lt;?]
+    </div>
+    
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>SINGLE TEXT PREDICTION:
+Input: Patient presents with persistent cough, fever of 101°F for 5 days, and fatigue.
+Top 3 predictions:
+1. Migraine: 0.236
+2. Malaria: 0.161
+3. Pneumonia: 0.141
+
+BATCH PREDICTION EXAMPLE:
+
+Text: Patient presents with persistent cough, fever of 1...
+  1. Migraine: 0.236
+  2. Malaria: 0.161
+  3. Pneumonia: 0.141
+
+Text: 7-year-old with red, itchy rash on face and arms, ...
+  1. Impetigo: 0.670
+  2. Psoriasis: 0.082
+  3. Fungal infection: 0.041
+
+Text: Adult male with sudden onset of severe headache, d...
+  1. Dengue: 0.341
+  2. Pneumonia: 0.108
+  3. Malaria: 0.089
+
+Text: Patient reports joint pain in fingers and wrists, ...
+  1. Dengue: 0.264
+  2. Psoriasis: 0.197
+  3. Varicose Veins: 0.109
+
+PROCESSING MEDIUM DATASET:
+First 3 results from medium dataset:
+
+Text: Patient 0: Symptoms include fever and sore throat...
+  1. urinary tract infection: 0.128
+  2. Common Cold: 0.113
+  3. Jaundice: 0.093
+
+Text: Patient 1: Symptoms include chest pain radiating t...
+  1. Jaundice: 0.210
+  2. Malaria: 0.121
+  3. Hypertension: 0.071
+
+Text: Patient 2: Symptoms include swollen lymph nodes an...
+  1. Impetigo: 0.245
+  2. urinary tract infection: 0.116
+  3. Jaundice: 0.073
+
+PROCESSING DATAFRAME:
+Sample DataFrame:
+   patient_id                                                        symptoms
+0        1001                       Persistent dry cough and fever for 3 days
+1        1002          Skin rash with small fluid-filled blisters, mild fever
+2        1003  Shortness of breath, chest tightness, wheezing when exercising
+3        1004                   Severe migraine, sensitivity to light, nausea
+4        1005         Pain and swelling in the right knee, difficulty walking
+
+DataFrame with predictions:
+   patient_id                                                        symptoms  \
+0        1001                       Persistent dry cough and fever for 3 days   
+1        1002          Skin rash with small fluid-filled blisters, mild fever   
+2        1003  Shortness of breath, chest tightness, wheezing when exercising   
+3        1004                   Severe migraine, sensitivity to light, nausea   
+4        1005         Pain and swelling in the right knee, difficulty walking   
+
+     top_prediction  confidence  
+0  Bronchial Asthma    0.170556  
+1          Impetigo    0.312419  
+2         Pneumonia    0.266389  
+3           Malaria    0.158541  
+4         Arthritis    0.197566  </code></pre>
+</div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+<div class="cell-output cell-output-display">
+
+<style>
+    /* Turns off some styling */
+    progress {
+        /* gets rid of default border in Firefox and Opera. */
+        border: none;
+        /* Needs to be in here for Safari polyfill so background images work as expected. */
+        background-size: auto;
+    }
+    progress:not([value]), progress:not([value])::-webkit-progress-bar {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px);
+    }
+    .progress-bar-interrupted, .progress-bar-interrupted::-webkit-progress-bar {
+        background: #F44336;
+    }
+</style>
+</div>
+<div class="cell-output cell-output-display">
+
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="conclusion-symptom-based-differential-diagnosis-tool" class="level1">
+<h1>Conclusion: Symptom-Based Differential Diagnosis Tool</h1>
+<p>In this project, we successfully developed a language model that can analyze patient-reported complaints and generate differential diagnoses with associated confidence scores. Our approach leveraged the 3 step method shown in the ULMFiT paper, to create an effective differential diagnostic aid.</p>
+<section id="key-accomplishments" class="level2">
+<h2 class="anchored" data-anchor-id="key-accomplishments">Key Accomplishments</h2>
+<ol type="1">
+<li><p><strong>Language Model Fine-Tuning</strong>: We took a pre-trained AWD-LSTM language model originally trained on the whole of Wikipedia.We then further finetuned it on a corpus of medical symptom descriptions, adapting it to the specific vocabulary and patterns found in clinical text.</p></li>
+<li><p><strong>Classifier Development</strong>: Using the above fine-tuned model, we built a text classifier capable of categorizing symptom descriptions into potential diagnoses with probability estimates for each condition.</p></li>
+<li><p><strong>Practical Output Format</strong>: The model provides the top 3 most likely diagnoses for any given symptom description along with confidence scores.</p></li>
+</ol>
+</section>
+<section id="results-and-performance" class="level2">
+<h2 class="anchored" data-anchor-id="results-and-performance">Results and Performance</h2>
+<p>We hope to build a model that shows state of the art accuracy on the test dataset and demonstrates strong capability in mapping symptom descriptions to appropriate diagnoses in practice where it can do</p>
+<ul>
+<li>Effective recognition of key symptoms in natural language descriptions</li>
+<li>Reasonable association of symptom patterns with relevant conditions</li>
+<li>Appropriate confidence distribution across potential diagnoses</li>
+</ul>
+</section>
+<section id="limitations-and-next-steps" class="level2">
+<h2 class="anchored" data-anchor-id="limitations-and-next-steps">Limitations and Next Steps</h2>
+<p>While the current implementation shows promise, several areas for improvement were identified:</p>
+<ol type="1">
+<li><p><strong>Expanded Medical Corpus</strong>: Incorporating Ugandan clinical guidelines and more diverse medical literature could further improve the model’s understanding of medical terminology.</p></li>
+<li><p><strong>Architecture Upgrades</strong>: Transitioning from LSTM-based models to transformer architectures could potentially enhance performance.</p></li>
+<li><p><strong>Reasoning Capabilities</strong>: Adding explicit reasoning components would help explain diagnostic suggestions and improve clinical utility.</p></li>
+<li><p><strong>RAG Implementation</strong>: Retrieval-augmented generation could provide more context-aware and evidence-based diagnostic suggestions.</p></li>
+<li><p><strong>Custom Medical Model Fine-tuning</strong>: We can further try out finetuning our own model which we can then use as a base model for our classifier.</p></li>
+<li><p><strong>Deploying the model to an API endpoint, Adding a UI</strong>: Deploying the model then building a UI for end user interaction.</p></li>
+</ol>
+<p>This work represents a foundation for aided differential diagnosis, with the potential to serve as a clinical decision support tool that helps healthcare providers consider a broader range of possible diagnoses based on patient-reported symptoms.</p>
+</section>
+</section>
+<section id="references" class="level1">
+<h1>References</h1>
+<p><a href="https://docs.fast.ai/tutorial.text.html#the-ulmfit-approach">Fastai Documentation - Text Transfer Learning</a></p>
+<p>The dataset for this competition was gotten from <a href="https://www.kaggle.com/datasets/niyarrbarman/symptom2disease">here</a></p>
+<p>This notebook which uploaded to github was published using <a href="https://www.answer.ai/posts/2024-12-13-nbsanity.html">nbsanity</a></p>
+<p>I will publish a part ii of this notebook which improves on the work above by using some of the below ideas</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  const viewSource = window.document.getElementById('quarto-view-source') ||
+                     window.document.getElementById('quarto-code-tools-source');
+  if (viewSource) {
+    const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+    viewSource.addEventListener("click", function(e) {
+      if (sourceUrl) {
+        // rstudio viewer pane
+        if (/\bcapabilities=\b/.test(window.location)) {
+          window.open(sourceUrl);
+        } else {
+          window.location.href = sourceUrl;
+        }
+      } else {
+        const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+        modal.show();
+      }
+      return false;
+    });
+  }
+  function toggleCodeHandler(show) {
+    return function(e) {
+      const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+      for (let i=0; i<detailsSrc.length; i++) {
+        const details = detailsSrc[i].parentElement;
+        if (show) {
+          details.open = true;
+        } else {
+          details.removeAttribute("open");
+        }
+      }
+      const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+      const fromCls = show ? "hidden" : "unhidden";
+      const toCls = show ? "unhidden" : "hidden";
+      for (let i=0; i<cellCodeDivs.length; i++) {
+        const codeDiv = cellCodeDivs[i];
+        if (codeDiv.classList.contains(fromCls)) {
+          codeDiv.classList.remove(fromCls);
+          codeDiv.classList.add(toCls);
+        } 
+      }
+      return false;
+    }
+  }
+  const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+  if (hideAllCode) {
+    hideAllCode.addEventListener("click", toggleCodeHandler(false));
+  }
+  const showAllCode = window.document.getElementById("quarto-show-all-code");
+  if (showAllCode) {
+    showAllCode.addEventListener("click", toggleCodeHandler(true));
+  }
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
