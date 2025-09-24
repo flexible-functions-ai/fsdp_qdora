@@ -1,22 +1,22 @@
 ---
 title: "AI for predictive differential diagnosis"
-subtitle: "Using large language models"
+subtitle: "Using efficiently tuned large language models"
 ---
 
 :::{.author-info}
 **Author:** [Silver Rubanza](https://rubanzasilver.com){.author-name}  
-**Affiliation:** [Flexible Functions](https://flexiblefunctions.com), AI Research Lab  
+**Affiliation:** [Flexible Functions](https://flexiblefunctions.com)     
 **Date:** August 19, 2025
 :::
 
 ## Overview
 
-This collection of tutorials demonstrates how to build AI systems for predictive differential diagnosis using large language models. We explore both traditional transfer learning approaches and modern efficient fine-tuning techniques, all applied to medical datasets including the Uganda Clinical Guidelines.
+This collection of tutorials demonstrates how to build AI systems for predictive differential diagnosis using large language models. We explore both traditional transfer learning approaches and modern efficient fine-tuning techniques, all applied to medical datasets including one derived from the Uganda Clinical Guidelines.
 
 ### Blog Posts & Tutorials
 
 - **[Text Transfer Learning with ULMFit - Medical LLM V1](sd_ulmfit.ipynb)** - Using fast.ai's text transfer learning to build a language model
-- **[FSDP QDora Tutorial](fsdp_qdora_ucg_v1.ipynb)** - Efficient finetuning of Llama 3 70B with FSDP QDora on the Uganda Clinical Guidelines using consumer GPUs
+- **[Efficient Fine-tuning of Llama 3 with FSDP QDora - Medical LLM V3](fsdp_qdora_ucg_v1.ipynb)** - Efficient finetuning of Llama 3 70B with FSDP QDora on the Uganda Clinical Guidelines using consumer GPUs
 
 ### What You'll Learn
 
@@ -131,9 +131,6 @@ Choose your learning path based on your goals and hardware:
 
 ---
 
-### About
-
-**[Silver Rubanza](https://rubanzasilver.com)** is a machine learning engineer and founder of **[Flexible Functions](https://flexiblefunctions.com)**, an AI research lab focused on making advanced AI techniques accessible to researchers and practitioners worldwide, with a particular emphasis on healthcare applications.
 
 ### Prerequisites
 
@@ -151,5 +148,5 @@ Choose your learning path based on your goals and hardware:
 ---
 
 *Begin your journey into AI for predictive differential diagnosis:*
-- *Start with [ULMFit](sd_ulmfit.ipynb) for a foundational approach*
-- *Advance to [FSDP QDora](fsdp_qdora_ucg_v1.ipynb) for cutting-edge techniques*
+- *Start with [Text Transfer Learning with ULMFit - Medical LLM V1](sd_ulmfit.ipynb) for a foundational approach*
+- *Advance to [Efficient Finetuning of Llama 3 with FSDP QDora - Medical LLM V3](fsdp_qdora_ucg_v1.ipynb) for cutting-edge techniques*

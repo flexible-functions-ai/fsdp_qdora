@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Efficient Finetuning of Llama 3 70B with FSDP QDora – profiling</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">FSDP QDora Tutorial</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html" rel="" target="">
+ <span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../fsdp_qdora_ucg_v1.html" rel="" target="">
+ <span class="menu-text">FSDP QDora Tutorial</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../sd_ulmfit.html" rel="" target="">
+ <span class="menu-text">Text Transfer Learning with ULMFit - Medical LLM V1</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/rubanzasilva" rel="" target=""><i class="bi bi-github" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://flexiblefunctions.com" rel="" target="">
+ <span class="menu-text">Flexible Functions</span></a>
+  </li>  
+</ul>
+            <div class="quarto-navbar-tools">
+</div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#profiling" id="toc-profiling" class="nav-link active" data-scroll-target="#profiling">Profiling</a></li>
+  <li><a href="#quickstart" id="toc-quickstart" class="nav-link" data-scroll-target="#quickstart">Quickstart</a></li>
+  <li><a href="#detailed-usage" id="toc-detailed-usage" class="nav-link" data-scroll-target="#detailed-usage">Detailed Usage</a></li>
+  <li><a href="#additional-notes" id="toc-additional-notes" class="nav-link" data-scroll-target="#additional-notes">Additional Notes</a></li>
+  <li><a href="#examples" id="toc-examples" class="nav-link" data-scroll-target="#examples">Examples</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><div class="quarto-title-block"><div class="quarto-title-tools-only"><h1></h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+
+
+
+<section id="profiling" class="level2">
+<h2 class="anchored" data-anchor-id="profiling">Profiling</h2>
+<p>Documentation for how to profile your training runs.</p>
+<p><strong>Tips</strong></p>
+<ul>
+<li>Only record what is necessary as profiling can significantly slow down training process.</li>
+<li>Set a <code>torch.profile.schedule</code> when running the profiler (description below), as trace artifacts are exported at the end of each profiling cycle and can be very large (on the order of hundreds of MBs each).</li>
+</ul>
+<p><strong>IMPORTANT</strong> There are issues with recording stack traces and exporting traces simultaneously (see this <a href="https://github.com/pytorch/pytorch/issues/113564">issue</a>) depending on <code>python</code> version.</p>
+<p>Tested with <code>python=3.11.9</code> and <code>torch=2.3.0</code>.</p>
+</section>
+<section id="quickstart" class="level2">
+<h2 class="anchored" data-anchor-id="quickstart">Quickstart</h2>
+<p>Running the following:</p>
+<pre><code>python train.py \
+--model_name "meta-llama/Llama-2-7b-hf" \
+--train_type qlora \
+--profile true \
+--export_trace true \
+--export_memory_timeline true \
+--max_steps 10</code></pre>
+<p>will result in a directory <code>{model_name}_{train_type}-{local_rank}</code> with the following artifacts:</p>
+<ul>
+<li><code>{model_name}-{train_type}-chrome-trace.json.gz</code> - interactive trace that can be viewed using <code>chrome::tracing</code>, <code>perfetto</code>, or <code>tensorboard</code></li>
+<li><code>{model_name}-{train_type}-key_averages.txt</code> - sorted table of events, e.g.:</li>
+</ul>
+<table class="table">
+<colgroup>
+<col style="width: 31%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 4%">
+<col style="width: 3%">
+<col style="width: 4%">
+<col style="width: 3%">
+<col style="width: 4%">
+<col style="width: 3%">
+<col style="width: 5%">
+<col style="width: 3%">
+<col style="width: 28%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Self CPU %</th>
+<th>Self CPU</th>
+<th>CPU total %</th>
+<th>CPU total</th>
+<th>CPU time avg</th>
+<th>Self CUDA</th>
+<th>Self CUDA %</th>
+<th>CUDA total</th>
+<th>CUDA time avg</th>
+<th># of Calls</th>
+<th>Source Location</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ncclDevKernel_AllGather_RING_LL(ncclDevComm<em>, unsigned int</em>, unsigned int*, int)</td>
+<td>0.00%</td>
+<td>0.000us</td>
+<td>0.00%</td>
+<td>0.000us</td>
+<td>0.000us</td>
+<td>88.038ms</td>
+<td>12.14%</td>
+<td>88.038ms</td>
+<td>830.547us</td>
+<td>106</td>
+<td>&lt;built-in method _allgather_base of PyCapsule object at 0x7f2760c2ea30&gt;</td>
+</tr>
+<tr class="even">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/distributed/distributed_c10d.py(2864): all_gather_into_tensor</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/distributed/c10d_logger.py(72): wrapper</td>
+</tr>
+<tr class="even">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/distributed/fsdp/_flat_param.py(1366): _all_gather_flat_param</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/distributed/fsdp/_flat_param.py(1285): unshard</td>
+</tr>
+<tr class="even">
+<td>FullyShardedDataParallel.forward</td>
+<td>0.00%</td>
+<td>0.000us</td>
+<td>0.00%</td>
+<td>0.000us</td>
+<td>0.000us</td>
+<td>59.050ms</td>
+<td>8.14%</td>
+<td>59.050ms</td>
+<td>59.050ms</td>
+<td>1</td>
+<td>&lt;built-in method embedding of type object at 0x7f281c5787c0&gt;</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/nn/functional.py(2154): embedding</td>
+</tr>
+<tr class="even">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/nn/modules/sparse.py(162): forward</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>torch/nn/modules/module.py(1534): _call_impl</td>
+</tr>
+<tr class="even">
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>nn.Module: Embedding_0</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><code>{model_name}-{train_type}-memory-timeline.html</code> - Stacked time series plot of memory use broken down by <code>Parameter</code>, <code>Gradients</code>, <code>Activations</code>, etc.</li>
+<li><code>{model_name}-{train_type}-stacks.txt</code> - Stack trace. See <a href="https://pytorch.org/docs/stable/profiler.html#torch.profiler._KinetoProfile.export_stacks">docs</a>.</li>
+</ul>
+</section>
+<section id="detailed-usage" class="level2">
+<h2 class="anchored" data-anchor-id="detailed-usage">Detailed Usage</h2>
+<p><code>CLI</code> options in full:</p>
+<ul>
+<li><p><code>profile</code> - whether to profile</p></li>
+<li><p><code>profiling_outputs</code> - output directory for <code>torch.profiler</code> artifacts</p></li>
+<li><p><code>export_trace</code> - enables exporting of interactive trace that can be viewed and analyzed using <code>chrome::tracing</code></p></li>
+<li><p><code>export_memory_timeline</code> - exports an HTML memory timeline which shows memory use by category (<code>parameters</code>, <code>activations</code>, <code>gradients</code>, etc.)</p></li>
+<li><p><code>with_stack</code> - exports stack trace</p></li>
+<li><p><code>with_shapes</code> - adds shapes of operators to the trace</p></li>
+<li><p><code>{wait, warmup, active}_steps, repeat, profiling_frequency</code> - controls the profiling schedule:</p>
+<ul>
+<li><p><code>wait_steps</code> - number of steps for the profiler to wait before starting to profile. Overridden if <code>repeat=0</code> (see note below).</p></li>
+<li><p><code>warmup_steps</code> - number of steps for profiler to profile without recording</p></li>
+<li><p><code>active_steps</code> - number of steps to record</p></li>
+<li><p><code>repeat</code> - number of times to repeat the above cycle of <code>wait, warmup, active</code> if <code>repeat &gt; 0</code> else cycles forever</p></li>
+<li><p><code>profiling_frequency</code> - profiling frequency in steps. Only used if <code>repeat = 0</code>, in which case <code>wait_steps = profiling_frequency - (warmup_steps + active_steps)</code> such that the effective cycle length = <code>profiling_frequency</code>. E.g., if <code>profiling_frequency=10</code>, <code>warmup_steps=2</code>, <code>active_steps=1</code>, then the profiler will wait 8 steps, warmup for 2, record for 1, then repeat.</p>
+<p><strong>Note</strong>: Simplest to think of 2 ways of scheduling the profiler:</p>
+<ol type="1">
+<li>Set <code>repeat</code> to the number of total number of desired profiling cycles. For example if <code>wait=1</code>, <code>warmup=1</code>, <code>active=1</code>, and <code>repeat=1</code>, then the profiler will wait for 1 step, warmup for 1, and record for 1 then stop.</li>
+<li>Set <code>repeat</code> to <code>0</code> and <code>profiling_frequency</code> to the cycle length. E.g., with <code>repeat=0</code>, <code>profiling_frequency=10</code>, <code>warmup=2</code>, <code>active=1</code>, then <code>wait</code> will be automatically set to <code>profiling_frequency - (warmup + active) = 7</code>. The profiler will then continuously execute the following cycle: wait for 7 steps, warmup for 2, record for 1 for the entire training run.</li>
+</ol>
+<p>See <a href="https://pytorch.org/docs/stable/profiler.html#torch.profiler.schedule">docs</a> for further details.</p></li>
+</ul></li>
+<li><p><code>max_steps</code> - maximum number of batches per epoch. E.g., with <code>num_epochs=1</code>, stops training after <code>max_steps</code> of batches. Note that this is automatically adjusted to accommodate the profiler schedule; for example, if <code>max_steps &lt; wait_steps + warmup_steps + active_steps</code>, it will automatically be set to <code>wait_steps + warmup_steps + active_steps</code> such that the profiler can run for at least 1 cycle.</p></li>
+</ul>
+</section>
+<section id="additional-notes" class="level2">
+<h2 class="anchored" data-anchor-id="additional-notes">Additional Notes</h2>
+<p>The default schedule for the profiler is set to continuously execute a 10-step cycle: wait for 7, warmup for 2, record for 1.</p>
+<p><code>with_stack</code> and <code>with_shapes</code> are overridden by <code>export_memory_timeline</code> since the memory profile requires these options to be <code>True</code>.</p>
+</section>
+<section id="examples" class="level2">
+<h2 class="anchored" data-anchor-id="examples">Examples</h2>
+<ul>
+<li><p>Record every 5th step, exporting a <code>chrome</code> / <code>tensorboard</code> trace for each cycle:</p>
+<pre><code>python train.py \
+--model_name "hf-internal-testing/tiny-random-LlamaForCausalLM" \
+--gradient_accumulation_steps 2 \
+--batch_size 1 \
+--context_length 256 \
+--num_epochs 1 \
+--sharding_strategy full_shard \
+--precision bf16 \
+--train_type qlora \
+--use_gradient_checkpointing false \
+--use_cpu_offload false \
+--log_to stdout \
+--dataset dummy \
+--profile true \
+--export_trace true \
+--export_memory_timeline false \
+--with_stack true \
+--num_epochs 1 \
+--max_steps 20 \
+--repeat 0 \
+--warmup_steps 4 \
+--active_steps 1 \
+--profiling_frequency 5 \
+--profiling_output llama-test</code></pre>
+<p>The output will be a 4 trace output folders, at iteration 5, 10, …, each containing a trace with a single training step at that iteration.</p>
+<p>Also in the folder will be exported stacks (which can be visualized using flamegraphs or other stack viewers) and <code>key_averages</code>, which is a summary table of operations ordered by <code>cuda</code> time.</p>
+<p>Note that we set <code>max_steps=20</code> so that the training loop will exit after 20 batches. If <code>max_steps=-1</code> (the default setting), the profiler will repeat the cycle during the entire training run.</p></li>
+<li><p>Record 5 steps (after 1 warmup step) then stop profiling:</p>
+<pre><code>python train.py \
+--model_name "hf-internal-testing/tiny-random-LlamaForCausalLM" \
+--gradient_accumulation_steps 2 \
+--batch_size 1 \
+--context_length 256 \
+--num_epochs 1 \
+--sharding_strategy full_shard \
+--precision bf16 \
+--train_type qlora \
+--use_gradient_checkpointing false \
+--use_cpu_offload false \
+--log_to stdout \
+--dataset dummy \
+--profile true \
+--export_trace true \
+--export_memory_timeline true \
+--with_stack true \
+--num_epochs 1 \
+--max_steps 20 \
+--warmup_steps 1 \
+--active_steps 5 \
+--repeat 1 \
+--profiling_output llama-test2</code></pre>
+<p>The output will be a single trace at <code>iteration_6</code> which contains 5 training steps. In addition to the <code>stacks</code> and <code>key_averages</code> artifacts, there will be a <code>memory_timeline</code> <code>html</code>, which shows a breakdown of memory usage by <code>parameter</code>, <code>gradients</code>, <code>activations</code>, etc.</p></li>
+</ul>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  const viewSource = window.document.getElementById('quarto-view-source') ||
+                     window.document.getElementById('quarto-code-tools-source');
+  if (viewSource) {
+    const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+    viewSource.addEventListener("click", function(e) {
+      if (sourceUrl) {
+        // rstudio viewer pane
+        if (/\bcapabilities=\b/.test(window.location)) {
+          window.open(sourceUrl);
+        } else {
+          window.location.href = sourceUrl;
+        }
+      } else {
+        const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+        modal.show();
+      }
+      return false;
+    });
+  }
+  function toggleCodeHandler(show) {
+    return function(e) {
+      const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+      for (let i=0; i<detailsSrc.length; i++) {
+        const details = detailsSrc[i].parentElement;
+        if (show) {
+          details.open = true;
+        } else {
+          details.removeAttribute("open");
+        }
+      }
+      const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+      const fromCls = show ? "hidden" : "unhidden";
+      const toCls = show ? "unhidden" : "hidden";
+      for (let i=0; i<cellCodeDivs.length; i++) {
+        const codeDiv = cellCodeDivs[i];
+        if (codeDiv.classList.contains(fromCls)) {
+          codeDiv.classList.remove(fromCls);
+          codeDiv.classList.add(toCls);
+        } 
+      }
+      return false;
+    }
+  }
+  const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+  if (hideAllCode) {
+    hideAllCode.addEventListener("click", toggleCodeHandler(false));
+  }
+  const showAllCode = window.document.getElementById("quarto-show-all-code");
+  if (showAllCode) {
+    showAllCode.addEventListener("click", toggleCodeHandler(true));
+  }
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="sourceCode" id="cb4" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Profiling</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Documentation for how to profile your training runs.</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>**Tips**</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Only record what is necessary as profiling can significantly slow down training process.</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Set a <span class="in">`torch.profile.schedule`</span> when running the profiler (description below), as trace artifacts are exported at the end of each profiling cycle and can be very large (on the order of hundreds of MBs each).</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>**IMPORTANT**</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>There are issues with recording stack traces and exporting traces simultaneously (see this <span class="co">[</span><span class="ot">issue</span><span class="co">](https://github.com/pytorch/pytorch/issues/113564)</span>) depending on <span class="in">`python`</span> version.</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>Tested with <span class="in">`python=3.11.9`</span> and <span class="in">`torch=2.3.0`</span>.</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="fu">## Quickstart</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>Running the following:</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="in">python train.py \</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="in">--model_name "meta-llama/Llama-2-7b-hf" \</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="in">--train_type qlora \</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="in">--profile true \</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="in">--export_trace true \</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="in">--export_memory_timeline true \</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="in">--max_steps 10</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>will result in a directory <span class="in">`{model_name}_{train_type}-{local_rank}`</span> with the following artifacts:</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`{model_name}-{train_type}-chrome-trace.json.gz`</span> - interactive trace that can be viewed using <span class="in">`chrome::tracing`</span>, <span class="in">`perfetto`</span>, or <span class="in">`tensorboard`</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`{model_name}-{train_type}-key_averages.txt`</span> - sorted table of events, e.g.:</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>| Name                                                                              | Self CPU % | Self CPU | CPU total % | CPU total | CPU time avg | Self CUDA | Self CUDA % | CUDA total | CUDA time avg | # of Calls | Source Location                                                          |</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>| --------------------------------------------------------------------------------- | ---------- | -------- | ----------- | --------- | ------------ | --------- | ----------- | ---------- | ------------- | ---------- | ------------------------------------------------------------------------ |</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>| ncclDevKernel_AllGather_RING_LL(ncclDevComm*, unsigned int*, unsigned int<span class="sc">\*</span>, int) | 0.00%      | 0.000us  | 0.00%       | 0.000us   | 0.000us      | 88.038ms  | 12.14%      | 88.038ms   | 830.547us     | 106        | <span class="kw">&lt;built-in</span> <span class="er">method</span> <span class="er">\_allgather_base</span> <span class="er">of</span> <span class="er">PyCapsule</span> <span class="er">object</span> <span class="er">at</span> <span class="er">0x7f2760c2ea30</span><span class="kw">&gt;</span> |</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/distributed/distributed_c10d.py(2864): all_gather_into_tensor      |</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/distributed/c10d_logger.py(72): wrapper                            |</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/distributed/fsdp/<span class="sc">\_</span>flat_param.py(1366): <span class="sc">\_</span>all_gather_flat_param    |</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/distributed/fsdp/<span class="sc">\_</span>flat_param.py(1285): unshard                    |</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>| FullyShardedDataParallel.forward                                                  | 0.00%      | 0.000us  | 0.00%       | 0.000us   | 0.000us      | 59.050ms  | 8.14%       | 59.050ms   | 59.050ms      | 1          | <span class="kw">&lt;built-in</span> <span class="er">method</span> <span class="er">embedding</span> <span class="er">of</span> <span class="er">type</span> <span class="er">object</span> <span class="er">at</span> <span class="er">0x7f281c5787c0</span><span class="kw">&gt;</span>             |</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/nn/functional.py(2154): embedding                                  |</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/nn/modules/sparse.py(162): forward                                 |</span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | torch/nn/modules/module.py(1534): <span class="sc">\_</span>call_impl                            |</span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>|                                                                                   |            |          |             |           |              |           |             |            |               |            | nn.Module: Embedding_0                                                   |</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`{model_name}-{train_type}-memory-timeline.html`</span> - Stacked time series plot of memory use broken down by <span class="in">`Parameter`</span>, <span class="in">`Gradients`</span>, <span class="in">`Activations`</span>, etc.</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`{model_name}-{train_type}-stacks.txt`</span> - Stack trace. See <span class="co">[</span><span class="ot">docs</span><span class="co">](https://pytorch.org/docs/stable/profiler.html#torch.profiler._KinetoProfile.export_stacks)</span>.</span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Detailed Usage</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a><span class="in">`CLI`</span> options in full:</span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`profile`</span> - whether to profile</span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`profiling_outputs`</span> - output directory for <span class="in">`torch.profiler`</span> artifacts</span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`export_trace`</span> - enables exporting of interactive trace that can be viewed and analyzed using <span class="in">`chrome::tracing`</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`export_memory_timeline`</span> - exports an HTML memory timeline which shows memory use by category (<span class="in">`parameters`</span>, <span class="in">`activations`</span>, <span class="in">`gradients`</span>, etc.)</span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`with_stack`</span> - exports stack trace</span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`with_shapes`</span> - adds shapes of operators to the trace</span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`{wait, warmup, active}_steps, repeat, profiling_frequency`</span> - controls the profiling schedule:</span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="in">`wait_steps`</span> - number of steps for the profiler to wait before starting to profile. Overridden if <span class="in">`repeat=0`</span> (see note below).</span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="in">`warmup_steps`</span> - number of steps for profiler to profile without recording</span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="in">`active_steps`</span> - number of steps to record</span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="in">`repeat`</span> - number of times to repeat the above cycle of <span class="in">`wait, warmup, active`</span> if <span class="in">`repeat &gt; 0`</span> else cycles forever</span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="in">`profiling_frequency`</span> - profiling frequency in steps. Only used if <span class="in">`repeat = 0`</span>, in which case <span class="in">`wait_steps = profiling_frequency - (warmup_steps + active_steps)`</span> such that the effective cycle length = <span class="in">`profiling_frequency`</span>. E.g., if <span class="in">`profiling_frequency=10`</span>, <span class="in">`warmup_steps=2`</span>, <span class="in">`active_steps=1`</span>, then the profiler will wait 8 steps, warmup for 2, record for 1, then repeat.</span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>    **Note**: Simplest to think of 2 ways of scheduling the profiler:</span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a><span class="ss">    1. </span>Set <span class="in">`repeat`</span> to the number of total number of desired profiling cycles. For example if <span class="in">`wait=1`</span>, <span class="in">`warmup=1`</span>, <span class="in">`active=1`</span>, and <span class="in">`repeat=1`</span>, then the profiler will wait for 1 step, warmup for 1, and record for 1 then stop.</span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a><span class="ss">    2. </span>Set <span class="in">`repeat`</span> to <span class="in">`0`</span> and <span class="in">`profiling_frequency`</span> to the cycle length. E.g., with <span class="in">`repeat=0`</span>, <span class="in">`profiling_frequency=10`</span>, <span class="in">`warmup=2`</span>, <span class="in">`active=1`</span>, then <span class="in">`wait`</span> will be automatically set to <span class="in">`profiling_frequency - (warmup + active) = 7`</span>. The profiler will then continuously execute the following cycle: wait for 7 steps, warmup for 2, record for 1 for the entire training run.</span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>    See <span class="co">[</span><span class="ot">docs</span><span class="co">](https://pytorch.org/docs/stable/profiler.html#torch.profiler.schedule)</span> for further details.</span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`max_steps`</span> - maximum number of batches per epoch. E.g., with <span class="in">`num_epochs=1`</span>, stops training after <span class="in">`max_steps`</span> of batches. Note that this is automatically adjusted to accommodate the profiler schedule; for example, if <span class="in">`max_steps &lt; wait_steps + warmup_steps + active_steps`</span>, it will automatically be set to <span class="in">`wait_steps + warmup_steps + active_steps`</span> such that the profiler can run for at least 1 cycle.</span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a><span class="fu">## Additional Notes</span></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>The default schedule for the profiler is set to continuously execute a 10-step cycle: wait for 7, warmup for 2, record for 1.</span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a><span class="in">`with_stack`</span> and <span class="in">`with_shapes`</span> are overridden by <span class="in">`export_memory_timeline`</span> since the memory profile requires these options to be <span class="in">`True`</span>.</span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a><span class="fu">## Examples</span></span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Record every 5th step, exporting a <span class="in">`chrome`</span> / <span class="in">`tensorboard`</span> trace for each cycle:</span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>  <span class="in">```</span></span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a><span class="in">  python train.py \</span></span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a><span class="in">  --model_name "hf-internal-testing/tiny-random-LlamaForCausalLM" \</span></span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a><span class="in">  --gradient_accumulation_steps 2 \</span></span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a><span class="in">  --batch_size 1 \</span></span>
+<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a><span class="in">  --context_length 256 \</span></span>
+<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a><span class="in">  --num_epochs 1 \</span></span>
+<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a><span class="in">  --sharding_strategy full_shard \</span></span>
+<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a><span class="in">  --precision bf16 \</span></span>
+<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a><span class="in">  --train_type qlora \</span></span>
+<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a><span class="in">  --use_gradient_checkpointing false \</span></span>
+<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a><span class="in">  --use_cpu_offload false \</span></span>
+<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a><span class="in">  --log_to stdout \</span></span>
+<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a><span class="in">  --dataset dummy \</span></span>
+<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a><span class="in">  --profile true \</span></span>
+<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a><span class="in">  --export_trace true \</span></span>
+<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a><span class="in">  --export_memory_timeline false \</span></span>
+<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a><span class="in">  --with_stack true \</span></span>
+<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a><span class="in">  --num_epochs 1 \</span></span>
+<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a><span class="in">  --max_steps 20 \</span></span>
+<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a><span class="in">  --repeat 0 \</span></span>
+<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a><span class="in">  --warmup_steps 4 \</span></span>
+<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a><span class="in">  --active_steps 1 \</span></span>
+<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a><span class="in">  --profiling_frequency 5 \</span></span>
+<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a><span class="in">  --profiling_output llama-test</span></span>
+<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a><span class="in">  ```</span></span>
+<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-114"><a href="#cb4-114" aria-hidden="true" tabindex="-1"></a>  The output will be a 4 trace output folders, at iteration 5, 10, ..., each containing a trace with a single training step at that iteration.</span>
+<span id="cb4-115"><a href="#cb4-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a>  Also in the folder will be exported stacks (which can be visualized using flamegraphs or other stack viewers) and <span class="in">`key_averages`</span>, which is a summary table of operations ordered by <span class="in">`cuda`</span> time.</span>
+<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a>  Note that we set <span class="in">`max_steps=20`</span> so that the training loop will exit after 20 batches. If <span class="in">`max_steps=-1`</span> (the default setting), the profiler will repeat the cycle during the entire training run.</span>
+<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Record 5 steps (after 1 warmup step) then stop profiling:</span>
+<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a>  <span class="in">```</span></span>
+<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a><span class="in">  python train.py \</span></span>
+<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a><span class="in">  --model_name "hf-internal-testing/tiny-random-LlamaForCausalLM" \</span></span>
+<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a><span class="in">  --gradient_accumulation_steps 2 \</span></span>
+<span id="cb4-125"><a href="#cb4-125" aria-hidden="true" tabindex="-1"></a><span class="in">  --batch_size 1 \</span></span>
+<span id="cb4-126"><a href="#cb4-126" aria-hidden="true" tabindex="-1"></a><span class="in">  --context_length 256 \</span></span>
+<span id="cb4-127"><a href="#cb4-127" aria-hidden="true" tabindex="-1"></a><span class="in">  --num_epochs 1 \</span></span>
+<span id="cb4-128"><a href="#cb4-128" aria-hidden="true" tabindex="-1"></a><span class="in">  --sharding_strategy full_shard \</span></span>
+<span id="cb4-129"><a href="#cb4-129" aria-hidden="true" tabindex="-1"></a><span class="in">  --precision bf16 \</span></span>
+<span id="cb4-130"><a href="#cb4-130" aria-hidden="true" tabindex="-1"></a><span class="in">  --train_type qlora \</span></span>
+<span id="cb4-131"><a href="#cb4-131" aria-hidden="true" tabindex="-1"></a><span class="in">  --use_gradient_checkpointing false \</span></span>
+<span id="cb4-132"><a href="#cb4-132" aria-hidden="true" tabindex="-1"></a><span class="in">  --use_cpu_offload false \</span></span>
+<span id="cb4-133"><a href="#cb4-133" aria-hidden="true" tabindex="-1"></a><span class="in">  --log_to stdout \</span></span>
+<span id="cb4-134"><a href="#cb4-134" aria-hidden="true" tabindex="-1"></a><span class="in">  --dataset dummy \</span></span>
+<span id="cb4-135"><a href="#cb4-135" aria-hidden="true" tabindex="-1"></a><span class="in">  --profile true \</span></span>
+<span id="cb4-136"><a href="#cb4-136" aria-hidden="true" tabindex="-1"></a><span class="in">  --export_trace true \</span></span>
+<span id="cb4-137"><a href="#cb4-137" aria-hidden="true" tabindex="-1"></a><span class="in">  --export_memory_timeline true \</span></span>
+<span id="cb4-138"><a href="#cb4-138" aria-hidden="true" tabindex="-1"></a><span class="in">  --with_stack true \</span></span>
+<span id="cb4-139"><a href="#cb4-139" aria-hidden="true" tabindex="-1"></a><span class="in">  --num_epochs 1 \</span></span>
+<span id="cb4-140"><a href="#cb4-140" aria-hidden="true" tabindex="-1"></a><span class="in">  --max_steps 20 \</span></span>
+<span id="cb4-141"><a href="#cb4-141" aria-hidden="true" tabindex="-1"></a><span class="in">  --warmup_steps 1 \</span></span>
+<span id="cb4-142"><a href="#cb4-142" aria-hidden="true" tabindex="-1"></a><span class="in">  --active_steps 5 \</span></span>
+<span id="cb4-143"><a href="#cb4-143" aria-hidden="true" tabindex="-1"></a><span class="in">  --repeat 1 \</span></span>
+<span id="cb4-144"><a href="#cb4-144" aria-hidden="true" tabindex="-1"></a><span class="in">  --profiling_output llama-test2</span></span>
+<span id="cb4-145"><a href="#cb4-145" aria-hidden="true" tabindex="-1"></a><span class="in">  ```</span></span>
+<span id="cb4-146"><a href="#cb4-146" aria-hidden="true" tabindex="-1"></a>  The output will be a single trace at <span class="in">`iteration_6`</span> which contains 5 training steps.</span>
+<span id="cb4-147"><a href="#cb4-147" aria-hidden="true" tabindex="-1"></a>  In addition to the <span class="in">`stacks`</span> and <span class="in">`key_averages`</span> artifacts, there will be a <span class="in">`memory_timeline`</span> <span class="in">`html`</span>, which shows a breakdown of memory usage by <span class="in">`parameter`</span>, <span class="in">`gradients`</span>, <span class="in">`activations`</span>, etc.</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+
+
+
+</body></html>

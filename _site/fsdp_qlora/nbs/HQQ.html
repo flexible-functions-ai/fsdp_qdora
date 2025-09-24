@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Efficient Finetuning of Llama 3 70B with FSDP QDora - FSDP</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="../../styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">FSDP QDora Tutorial</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html" rel="" target="">
+ <span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../fsdp_qdora_ucg_v1.html" rel="" target="">
+ <span class="menu-text">FSDP QDora Tutorial</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../sd_ulmfit.html" rel="" target="">
+ <span class="menu-text">Text Transfer Learning with ULMFit - Medical LLM V1</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/rubanzasilva" rel="" target=""><i class="bi bi-github" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://flexiblefunctions.com" rel="" target="">
+ <span class="menu-text">Flexible Functions</span></a>
+  </li>  
+</ul>
+            <div class="quarto-navbar-tools">
+</div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#tests" id="toc-tests" class="nav-link active" data-scroll-target="#tests">Tests</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">FSDP</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> hqq_aten</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> hqq.core.quantize <span class="im">import</span> Quantizer, HQQLinear, BaseQuantizeConfig, HQQBackend</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>hqq_aten package available. Set backend to HQQBackend.ATEN for faster inference and HQQBackend.ATEN_BACKPROP for faster training!</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> List</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> Tensor</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> accelerate.utils <span class="im">import</span> set_seed</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> accelerate <span class="im">import</span> init_empty_weights</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoConfig, AutoModelForCausalLM</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.utils <span class="im">import</span> hub, SAFE_WEIGHTS_NAME, SAFE_WEIGHTS_INDEX_NAME</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> safetensors</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> fastcore.parallel <span class="im">import</span> parallel</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Optionally use the context manager to ensure one of the fused kernels is run</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>query <span class="op">=</span> torch.rand(<span class="dv">32</span>, <span class="dv">8</span>, <span class="dv">128</span>, <span class="dv">64</span>, dtype<span class="op">=</span>torch.float16, device<span class="op">=</span><span class="st">"cuda"</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>key <span class="op">=</span> torch.rand(<span class="dv">32</span>, <span class="dv">8</span>, <span class="dv">128</span>, <span class="dv">64</span>, dtype<span class="op">=</span>torch.float16, device<span class="op">=</span><span class="st">"cuda"</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>value <span class="op">=</span> torch.rand(<span class="dv">32</span>, <span class="dv">8</span>, <span class="dv">128</span>, <span class="dv">64</span>, dtype<span class="op">=</span>torch.float16, device<span class="op">=</span><span class="st">"cuda"</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.backends.cuda.sdp_kernel(<span class="va">True</span>, <span class="va">False</span>, <span class="va">False</span>):</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    F.scaled_dot_product_attention(query,key,value)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>set_seed(<span class="dv">42</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> torch.nn.Linear(<span class="dv">16</span>,<span class="dv">128</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>quant_config <span class="op">=</span> BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">False</span>, quant_scale<span class="op">=</span><span class="va">False</span>, offload_meta<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>hqq_linear <span class="op">=</span> HQQLinear(m, quant_config<span class="op">=</span>quant_config)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>hqq_linear.compute_dtype</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>torch.float16</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="bu">next</span>(hqq_linear.parameters())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>Parameter containing:
+tensor([[-1.8690e+31, -1.7469e-07, -9.8312e-20,  4.3347e+23, -1.0372e-23,
+         -5.6423e+16,  1.3304e-05,  6.1785e-24],
+        [-5.7602e+10,  5.1494e+18, -1.7353e+27, -7.9082e-32,  8.7318e+06,
+         -4.3186e-06,  1.4261e-18,  3.5633e+17],
+        [ 2.8733e-02, -6.6121e-15,  4.6052e-22, -5.8633e+18,  1.6486e+06,
+          1.2226e-18,  9.0436e+25,  5.9841e-04],
+        [ 6.3572e-37,  2.1430e-10,  5.6341e-01, -5.9994e-36,  1.9233e+11,
+          2.9263e-09,  3.3071e-09,  1.0180e-20],
+        [-1.0810e-13,  8.8023e+08,  6.2707e+18,  1.3579e-24, -4.7377e+23,
+          3.5615e+17,  2.6324e-14,  4.2122e-09],
+        [ 2.4662e-25, -3.4900e+27,  9.6193e+29,  2.6624e+03,  2.2651e-29,
+          3.0514e+14,  6.9221e+30,  1.6402e+19],
+        [ 7.4646e+22, -9.6859e-28, -4.3350e-10,  5.1519e-34, -4.1487e-07,
+         -7.7171e+37,  9.2547e+13,  8.3544e+23],
+        [-1.6869e-09, -2.6847e+18, -8.0041e-29,  9.5645e-38,  1.3935e-02,
+         -1.4938e-13,  1.0959e-11,  1.0414e-32],
+        [-3.7106e-07,  1.6020e-09,  5.3166e+36,  1.1653e-30,  5.6269e+17,
+          1.7686e-32,  2.3617e+02, -4.2526e+28],
+        [ 1.7555e+13,  7.6786e-05,  9.5206e+14,  4.9653e-02, -2.7269e-24,
+         -1.1017e-01, -4.1573e-16, -4.8174e-23],
+        [-2.9936e+07,  1.9641e-36, -8.3284e-35,  1.8591e-26,  1.4642e+25,
+          5.6287e-28,  7.7592e+09, -5.0669e+06],
+        [-1.8897e-21, -2.0112e+20,  4.7147e+34,  9.6051e-25, -5.1717e+05,
+          9.1546e+00,  5.4721e-24, -1.5698e+24],
+        [ 1.0694e+16,  5.4373e+04,  1.2801e-03,  4.4126e-09, -1.2773e-35,
+          3.7246e+07,  3.6701e+15,  6.3485e+06],
+        [ 2.6589e-09, -2.5449e+06,  9.6047e-39,  4.2585e+20, -1.7479e+02,
+         -4.3529e-26, -1.1987e+24, -1.1508e+25],
+        [ 4.6449e-32, -1.5308e-26,  3.9841e-18,  1.1292e-21,  3.8489e-08,
+         -2.8361e+01, -3.1611e+09, -2.5271e-27],
+        [-9.7359e-24,  2.7734e+28, -4.8315e-12,  3.0113e+32,  3.9759e+09,
+         -8.1162e+25,  1.6537e+08,  7.9032e-37],
+        [ 3.6381e-26,  1.4493e+38, -2.5790e+05, -2.4838e-34,  1.4304e+06,
+         -1.1399e-36, -2.0599e+23, -4.4556e-23],
+        [-4.8743e+26, -3.2384e-06,  8.0767e-16, -6.6715e+24,  3.5411e-24,
+          3.4405e+07,  4.9961e-37,  7.5914e+18],
+        [ 4.9612e+04, -1.9965e+25,  2.3972e+35, -9.3756e+10,  1.6764e-25,
+         -3.3598e-22,  3.7503e+10,  3.1760e+21],
+        [ 2.4561e-08,  1.1222e+35, -1.7132e+34,  4.8265e-19, -5.3818e-17,
+          4.3160e+01,  1.5106e+13,  4.2396e+25],
+        [-8.7586e+18,  2.2979e+16,  2.8853e-02, -5.4119e+12, -4.8991e+27,
+         -1.3176e+05, -1.5185e-35, -5.2663e-08],
+        [-4.9525e+22,  2.6456e+21, -6.6132e-16,  5.9137e+08, -6.8673e+30,
+         -1.1277e+03, -8.7609e+29,  5.9418e-28],
+        [-3.2768e-10, -5.1658e-14, -2.3504e+27,  3.2130e+06, -2.6921e+19,
+          7.4000e-20,  1.3070e-24, -1.1684e+29],
+        [-1.9485e+33, -1.6401e+27,  5.9458e-18, -1.1368e-24,  7.1163e-09,
+         -5.2176e+34,  1.3326e-02,  1.3937e-38],
+        [-3.4272e-07,  7.0026e+22,  3.3191e+23, -3.8086e-24, -3.1557e-28,
+         -1.4411e+19,  8.2169e-20, -2.2000e+35],
+        [-3.9428e+01, -4.0882e-06, -6.5982e-25,  1.6298e+12, -1.0176e+12,
+          3.0798e+06,  4.0689e+02,  1.3383e+38],
+        [-1.6804e+08,  3.0361e-01,  5.0893e-34,  1.2463e+18,  1.4580e+06,
+         -1.8916e+05, -9.8710e+36,  2.9459e+04],
+        [-2.7046e-11, -4.2445e+21,  5.9648e+01,  4.2992e+14, -3.0052e+05,
+          4.9578e+23,  1.8172e+25, -2.4127e-17],
+        [ 6.3310e+13,  1.4881e+32, -6.1006e-36, -6.1947e+11,  5.1969e+05,
+          1.7885e+25, -1.1800e-37, -4.9508e+04],
+        [ 1.3706e+17,  5.2504e-05,  8.2312e+13,  8.1923e+08,  5.6115e-25,
+          4.6359e+16,  1.9769e-20, -8.4875e-32],
+        [ 1.9187e+23,  9.1218e+25, -1.9125e-17,  5.3448e+23, -1.4947e+32,
+         -2.7552e+25, -1.3683e-25, -8.3450e-10],
+        [ 1.8771e+06,  7.4212e-37, -9.7615e-27,  5.3814e+07,  1.0501e-27,
+         -2.9047e+08, -5.6822e+03,  5.3259e-01]], device='cuda:0')</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>w <span class="op">=</span> m.weight.data</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>w.shape</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>torch.Size([128, 16])</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>W_q, meta <span class="op">=</span> Quantizer.quantize(w, round_zero<span class="op">=</span><span class="va">True</span>, optimize<span class="op">=</span><span class="va">True</span>, view_as_float<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>W_q.shape, W_q.dtype</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>(torch.Size([32, 32]), torch.uint8)</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>meta[<span class="st">'scale'</span>].dtype</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>torch.float16</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>w_dq <span class="op">=</span> Quantizer.dequantize(W_q, meta)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>w, w_dq</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>(tensor([[ 0.1196,  0.0683, -0.0960,  ..., -0.2410, -0.1544, -0.0864],
+         [-0.0278, -0.0483,  0.1141,  ...,  0.0873,  0.0023,  0.2011],
+         [ 0.0982, -0.0460,  0.0086,  ...,  0.0627, -0.0216, -0.0140],
+         ...,
+         [-0.0208,  0.1148, -0.0562,  ..., -0.0961,  0.2354,  0.2077],
+         [ 0.1820,  0.1345, -0.0235,  ...,  0.0432, -0.1749,  0.1510],
+         [-0.2125,  0.0024, -0.2045,  ..., -0.1916,  0.1080,  0.0231]]),
+ tensor([[ 0.1224,  0.0717, -0.0930,  ..., -0.2524, -0.1595, -0.0937],
+         [-0.0320, -0.0627,  0.1289,  ...,  0.0945,  0.0091,  0.1919],
+         [ 0.0917, -0.0519,  0.0014,  ...,  0.0705, -0.0320,  0.0009],
+         ...,
+         [-0.0320,  0.1304, -0.0645,  ..., -0.0981,  0.2344,  0.1919],
+         [ 0.1841,  0.1334, -0.0301,  ...,  0.0382, -0.1595,  0.1584],
+         [-0.2222,  0.0016, -0.1934,  ..., -0.1943,  0.1057,  0.0273]],
+        dtype=torch.float16))</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>torch.norm(w <span class="op">-</span> w_dq, p<span class="op">=</span><span class="fl">0.7</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>tensor(390.0982)</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">False</span>, quant_scale<span class="op">=</span><span class="va">False</span>, offload_meta<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>{'weight_quant_params': {'nbits': 4,
+  'channel_wise': True,
+  'group_size': 64,
+  'optimize': True,
+  'round_zero': True},
+ 'scale_quant_params': None,
+ 'zero_quant_params': None,
+ 'offload_meta': False}</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>quant_configs <span class="op">=</span> [</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>                 BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">False</span>, quant_scale<span class="op">=</span><span class="va">False</span>, offload_meta<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>                 BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">True</span>, quant_scale<span class="op">=</span><span class="va">False</span>, offload_meta<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>                 BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">False</span>, quant_scale<span class="op">=</span><span class="va">True</span>, offload_meta<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>                 BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">True</span>, quant_scale<span class="op">=</span><span class="va">True</span>, offload_meta<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>                 BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">True</span>, quant_scale<span class="op">=</span><span class="va">True</span>, offload_meta<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>                 BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, quant_zero<span class="op">=</span><span class="va">False</span>, quant_scale<span class="op">=</span><span class="va">False</span>, offload_meta<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>w_dqs <span class="op">=</span> []</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> quant_cfg <span class="kw">in</span> quant_configs:</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> quant_cfg[<span class="st">'scale_quant_params'</span>]: </span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>        quant_cfg[<span class="st">'scale_quant_params'</span>][<span class="st">'group_size'</span>] <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> quant_cfg[<span class="st">'zero_quant_params'</span>]: </span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> quant_cfg[<span class="st">'offload_meta'</span>]:</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>            quant_cfg[<span class="st">'zero_quant_params'</span>][<span class="st">'group_size'</span>] <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>            quant_cfg[<span class="st">'zero_quant_params'</span>][<span class="st">'channel_wise'</span>] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>            quant_cfg[<span class="st">'zero_quant_params'</span>][<span class="st">'group_size'</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>            quant_cfg[<span class="st">'zero_quant_params'</span>][<span class="st">'channel_wise'</span>] <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>    mq <span class="op">=</span> HQQLinear(m, quant_cfg, compute_dtype<span class="op">=</span>torch.bfloat16, initialize<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a>    HQQLinear.set_backend(HQQBackend.ATEN_BACKPROP)</span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>    mq.initialize()</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(mq.W_q.dtype, mq.meta)</span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>()</span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a>    w_dqs.append(mq.dequantize_aten())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>(torch.norm(w.cuda() <span class="op">-</span> w_dqs[<span class="dv">0</span>], p<span class="op">=</span><span class="fl">0.7</span>),</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>torch.norm(w.cuda() <span class="op">-</span> w_dqs[<span class="dv">1</span>], p<span class="op">=</span><span class="fl">0.7</span>),</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>torch.norm(w.cuda() <span class="op">-</span> w_dqs[<span class="dv">2</span>], p<span class="op">=</span><span class="fl">0.7</span>),</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>torch.norm(w.cuda() <span class="op">-</span> w_dqs[<span class="dv">3</span>], p<span class="op">=</span><span class="fl">0.7</span>),</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>torch.norm(w.cuda() <span class="op">-</span> w_dqs[<span class="dv">4</span>], p<span class="op">=</span><span class="fl">0.7</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>(tensor(390.9176, device='cuda:0'),
+ tensor(390.5967, device='cuda:0'),
+ tensor(390.7930, device='cuda:0'),
+ tensor(390.1439, device='cuda:0'),
+ tensor(392.0999, device='cuda:0'))</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> replace_linear_hqq(model:nn.Module, quant_config, skip_modules:List[<span class="bu">str</span>]<span class="op">=</span>[<span class="st">"lm_head"</span>], <span class="op">**</span>kwargs):</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Replace linear modules with a new Linear module.</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters:</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="co">        model (`torch.nn.Module`):</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="co">            Input model or `torch.nn.Module` as the function is run recursively.</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a><span class="co">        quant_config (`Dict[str, Any]`):</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a><span class="co">            The quantization configuration for the new linear module.</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="co">        skip_modules (`List[str]`, *optional*, defaults to `lm_head`):</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="co">            List of modules names not to convert. Defaults to `lm_head`.</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> name, module <span class="kw">in</span> model.named_children():</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="bu">list</span>(module.children())) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>            replace_linear_hqq(module, quant_config, skip_modules, <span class="op">**</span>kwargs)</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">isinstance</span>(module, torch.nn.Linear) <span class="kw">and</span> name <span class="kw">not</span> <span class="kw">in</span> skip_modules:</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>            model._modules[name] <span class="op">=</span> HQQLinear(</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>                module,</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>                quant_config,</span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a>                <span class="op">**</span>kwargs</span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> load_and_quantize_hqq(module:nn.Module, name:<span class="bu">str</span>, value:Tensor, device:torch.device<span class="op">=</span><span class="va">None</span>, dtype:torch.dtype<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>                                  skip_names:<span class="bu">list</span>[<span class="bu">str</span>]<span class="op">=</span>[], is_meta_rank:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, low_memory:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, verbose:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="co">    Loads `value` tensor into submodule of `module`, optionally skipping `skip_names` and converting to `dtype`.</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="co">    Quantizes `Params4bit` on `device` then places on "cpu" if low_memory=True or "meta" if is_meta_rank=True.</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> place_on_device(value):</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> is_meta_rank:</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>            device <span class="op">=</span> <span class="st">'meta'</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> low_memory:</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>            device <span class="op">=</span> <span class="st">'cpu'</span></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> value.to(device<span class="op">=</span>device, dtype<span class="op">=</span>dtype)</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>([skip_name <span class="kw">in</span> name <span class="cf">for</span> skip_name <span class="kw">in</span> skip_names]):</span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> verbose:</span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Skipping </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss"> because it is in skip_names"</span>)</span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span></span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a>    module_key, _, value_key <span class="op">=</span> name.rpartition(<span class="st">'.'</span>)</span>
+<span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb36-22"><a href="#cb36-22" aria-hidden="true" tabindex="-1"></a>        submodule <span class="op">=</span> module.get_submodule(module_key)</span>
+<span id="cb36-23"><a href="#cb36-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">AttributeError</span> <span class="im">as</span> e:</span>
+<span id="cb36-24"><a href="#cb36-24" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"Module </span><span class="sc">{</span>module_key<span class="sc">}</span><span class="ss"> not found:</span><span class="ch">\n</span><span class="sc">{</span>e<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb36-25"><a href="#cb36-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span></span>
+<span id="cb36-26"><a href="#cb36-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-27"><a href="#cb36-27" aria-hidden="true" tabindex="-1"></a>    start <span class="op">=</span> time.time()</span>
+<span id="cb36-28"><a href="#cb36-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb36-29"><a href="#cb36-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">isinstance</span>(submodule, HQQLinear):</span>
+<span id="cb36-30"><a href="#cb36-30" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> value_key <span class="op">==</span> <span class="st">"weight"</span>:</span>
+<span id="cb36-31"><a href="#cb36-31" aria-hidden="true" tabindex="-1"></a>                <span class="co"># init meta weights as empty on cpu</span></span>
+<span id="cb36-32"><a href="#cb36-32" aria-hidden="true" tabindex="-1"></a>                submodule.linear_layer.to_empty(device<span class="op">=</span><span class="st">"cpu"</span>)</span>
+<span id="cb36-33"><a href="#cb36-33" aria-hidden="true" tabindex="-1"></a>                <span class="co"># copy pretrained weights</span></span>
+<span id="cb36-34"><a href="#cb36-34" aria-hidden="true" tabindex="-1"></a>                submodule.linear_layer.weight.data.copy_(value)</span>
+<span id="cb36-35"><a href="#cb36-35" aria-hidden="true" tabindex="-1"></a>                <span class="co"># quantize and update metadata</span></span>
+<span id="cb36-36"><a href="#cb36-36" aria-hidden="true" tabindex="-1"></a>                submodule.initialize()</span>
+<span id="cb36-37"><a href="#cb36-37" aria-hidden="true" tabindex="-1"></a>                </span>
+<span id="cb36-38"><a href="#cb36-38" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> is_meta_rank:</span>
+<span id="cb36-39"><a href="#cb36-39" aria-hidden="true" tabindex="-1"></a>                    <span class="bu">setattr</span>(submodule, <span class="st">"W_q"</span>, nn.Parameter(submodule.W_q.to(<span class="st">"meta"</span>)))</span>
+<span id="cb36-40"><a href="#cb36-40" aria-hidden="true" tabindex="-1"></a>                <span class="cf">elif</span> low_memory:</span>
+<span id="cb36-41"><a href="#cb36-41" aria-hidden="true" tabindex="-1"></a>                    <span class="bu">setattr</span>(submodule, <span class="st">"W_q"</span>, nn.Parameter(submodule.W_q.to(<span class="st">"cpu"</span>)))</span>
+<span id="cb36-42"><a href="#cb36-42" aria-hidden="true" tabindex="-1"></a>                submodule.in_gpu <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb36-43"><a href="#cb36-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-44"><a href="#cb36-44" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> value_key <span class="op">==</span> <span class="st">"bias"</span>:</span>
+<span id="cb36-45"><a href="#cb36-45" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"Bias not supported in HQQLinear yet!"</span>)</span>
+<span id="cb36-46"><a href="#cb36-46" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb36-47"><a href="#cb36-47" aria-hidden="true" tabindex="-1"></a>            end <span class="op">=</span> time.time()</span>
+<span id="cb36-48"><a href="#cb36-48" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> is_meta_rank:</span>
+<span id="cb36-49"><a href="#cb36-49" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"Loaded HQQLinear quantized </span><span class="sc">{</span>module_key<span class="sc">}</span><span class="ss"> in </span><span class="sc">{</span>end<span class="op">-</span>start<span class="sc">:.3f}</span><span class="ss"> seconds"</span>)</span>
+<span id="cb36-50"><a href="#cb36-50" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span></span>
+<span id="cb36-51"><a href="#cb36-51" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb36-52"><a href="#cb36-52" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb36-53"><a href="#cb36-53" aria-hidden="true" tabindex="-1"></a>            param <span class="op">=</span> submodule.get_parameter(value_key)</span>
+<span id="cb36-54"><a href="#cb36-54" aria-hidden="true" tabindex="-1"></a>            value <span class="op">=</span> <span class="bu">type</span>(param)(place_on_device(value).data)</span>
+<span id="cb36-55"><a href="#cb36-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-56"><a href="#cb36-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">AttributeError</span>:</span>
+<span id="cb36-57"><a href="#cb36-57" aria-hidden="true" tabindex="-1"></a>        <span class="co"># it's a buffer</span></span>
+<span id="cb36-58"><a href="#cb36-58" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> place_on_device(value)</span>
+<span id="cb36-59"><a href="#cb36-59" aria-hidden="true" tabindex="-1"></a>        <span class="cf">pass</span></span>
+<span id="cb36-60"><a href="#cb36-60" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb36-61"><a href="#cb36-61" aria-hidden="true" tabindex="-1"></a>    <span class="bu">setattr</span>(submodule, value_key, value)</span>
+<span id="cb36-62"><a href="#cb36-62" aria-hidden="true" tabindex="-1"></a>    end <span class="op">=</span> time.time()</span>
+<span id="cb36-63"><a href="#cb36-63" aria-hidden="true" tabindex="-1"></a>    torch.cuda.empty_cache()</span>
+<span id="cb36-64"><a href="#cb36-64" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> is_meta_rank:</span>
+<span id="cb36-65"><a href="#cb36-65" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"Loaded </span><span class="sc">{</span>module_key<span class="sc">}</span><span class="ss"> and </span><span class="sc">{</span>value_key<span class="sc">}</span><span class="ss"> in </span><span class="sc">{</span>end<span class="op">-</span>start<span class="sc">:.3f}</span><span class="ss"> seconds"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>idx <span class="op">=</span> hub.cached_file(model_name, SAFE_WEIGHTS_INDEX_NAME)</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>files, _ <span class="op">=</span> hub.get_checkpoint_shard_files(model_name, idx)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>compute_dtype <span class="op">=</span> torch.bfloat16</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"meta-llama/Llama-2-7b-hf"</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>cfg <span class="op">=</span> AutoConfig.from_pretrained(model_name)</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>cfg.use_cache <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>cfg._attn_implementation <span class="op">=</span> <span class="st">"sdpa"</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a><span class="co"># cfg.num_hidden_layers = 8 # DEBUG</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a><span class="co"># load model on meta device without calling init and replace nn.Linear with Linear4bit</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> init_empty_weights():</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> AutoModelForCausalLM.from_config(cfg)</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># </span><span class="al">TODO</span><span class="co">: Tune BaseQuantizeConfig.</span></span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>    quant_config <span class="op">=</span> BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, </span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>                                      group_size<span class="op">=</span><span class="dv">64</span>, </span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a>                                      quant_zero<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>                                      quant_scale<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>                                      offload_meta<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>    model.model <span class="op">=</span> replace_linear_hqq(model.model, quant_config, device_n<span class="op">=</span>torch.cuda.current_device(),</span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a>                                    compute_dtype<span class="op">=</span>compute_dtype, del_orig<span class="op">=</span><span class="va">True</span>, initialize<span class="op">=</span><span class="va">False</span>)     </span>
+<span id="cb38-21"><a href="#cb38-21" aria-hidden="true" tabindex="-1"></a>    HQQLinear.set_backend(HQQBackend.ATEN_BACKPROP)</span>
+<span id="cb38-22"><a href="#cb38-22" aria-hidden="true" tabindex="-1"></a>model.is_loaded_in_4bit <span class="op">=</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>local_rank <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>low_memory <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>load_param_skip_names <span class="op">=</span> []</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>rank <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Loading model"</span>, rank)</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>start <span class="op">=</span> time.time()</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> filename <span class="kw">in</span> files:</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>    weights <span class="op">=</span> safetensors.torch.load_file(filename)</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> name, param <span class="kw">in</span> weights.items():</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>        load_and_quantize_hqq(model, name, param, dtype<span class="op">=</span>torch.bfloat16, device<span class="op">=</span>local_rank, skip_names<span class="op">=</span>load_param_skip_names,</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>                                is_meta_rank<span class="op">=</span>(low_memory <span class="kw">and</span> rank<span class="op">!=</span><span class="dv">0</span>), verbose<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Loaded model weights in </span><span class="sc">{</span>time<span class="sc">.</span>time()<span class="op">-</span>start<span class="sc">:.3f}</span><span class="ss"> seconds"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Loading model 0
+Loaded model.embed_tokens and weight in 0.067 seconds
+Loaded model.layers.0.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.0.mlp.down_proj in 0.271 seconds
+Loaded HQQLinear quantized model.layers.0.mlp.gate_proj in 0.243 seconds
+Loaded HQQLinear quantized model.layers.0.mlp.up_proj in 0.236 seconds
+Loaded model.layers.0.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.k_proj in 0.065 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.o_proj in 0.062 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.q_proj in 0.063 seconds
+Loaded model.layers.0.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.v_proj in 0.060 seconds
+Loaded model.layers.1.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.1.mlp.down_proj in 0.239 seconds
+Loaded HQQLinear quantized model.layers.1.mlp.gate_proj in 0.247 seconds
+Loaded HQQLinear quantized model.layers.1.mlp.up_proj in 0.283 seconds
+Loaded model.layers.1.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.k_proj in 0.078 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.o_proj in 0.065 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.q_proj in 0.061 seconds
+Loaded model.layers.1.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.v_proj in 0.074 seconds
+Loaded model.layers.10.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.10.mlp.down_proj in 0.976 seconds
+Loaded HQQLinear quantized model.layers.10.mlp.gate_proj in 1.748 seconds
+Loaded HQQLinear quantized model.layers.10.mlp.up_proj in 1.001 seconds
+Loaded model.layers.10.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.k_proj in 0.358 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.o_proj in 0.383 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.q_proj in 0.390 seconds
+Loaded model.layers.10.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.v_proj in 0.394 seconds
+Loaded model.layers.11.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.11.mlp.down_proj in 0.971 seconds
+Loaded HQQLinear quantized model.layers.11.mlp.gate_proj in 0.959 seconds
+Loaded HQQLinear quantized model.layers.11.mlp.up_proj in 1.649 seconds
+Loaded model.layers.11.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.k_proj in 0.410 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.o_proj in 0.391 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.q_proj in 0.375 seconds
+Loaded model.layers.11.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.v_proj in 0.401 seconds
+Loaded model.layers.12.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.12.mlp.down_proj in 0.961 seconds
+Loaded HQQLinear quantized model.layers.12.mlp.gate_proj in 0.927 seconds
+Loaded HQQLinear quantized model.layers.12.mlp.up_proj in 0.967 seconds
+Loaded model.layers.12.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.k_proj in 0.418 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.o_proj in 1.161 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.q_proj in 0.388 seconds
+Loaded model.layers.12.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.v_proj in 0.385 seconds
+Loaded model.layers.13.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.13.mlp.down_proj in 0.953 seconds
+Loaded HQQLinear quantized model.layers.13.mlp.gate_proj in 0.949 seconds
+Loaded HQQLinear quantized model.layers.13.mlp.up_proj in 0.950 seconds
+Loaded model.layers.13.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.k_proj in 0.382 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.o_proj in 0.370 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.q_proj in 0.386 seconds
+Loaded model.layers.13.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.v_proj in 1.341 seconds
+Loaded model.layers.14.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.14.mlp.down_proj in 0.947 seconds
+Loaded HQQLinear quantized model.layers.14.mlp.gate_proj in 0.946 seconds
+Loaded HQQLinear quantized model.layers.14.mlp.up_proj in 0.984 seconds
+Loaded model.layers.14.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.k_proj in 0.386 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.o_proj in 0.387 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.q_proj in 0.378 seconds
+Loaded model.layers.14.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.v_proj in 0.376 seconds
+Loaded model.layers.15.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.15.mlp.down_proj in 1.806 seconds
+Loaded HQQLinear quantized model.layers.15.mlp.gate_proj in 0.921 seconds
+Loaded HQQLinear quantized model.layers.15.mlp.up_proj in 0.939 seconds
+Loaded model.layers.15.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.k_proj in 0.386 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.o_proj in 0.378 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.q_proj in 0.377 seconds
+Loaded model.layers.15.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.v_proj in 0.391 seconds
+Loaded model.layers.16.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.16.mlp.down_proj in 0.981 seconds
+Loaded HQQLinear quantized model.layers.16.mlp.gate_proj in 1.731 seconds
+Loaded HQQLinear quantized model.layers.16.mlp.up_proj in 0.962 seconds
+Loaded model.layers.16.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.k_proj in 0.387 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.o_proj in 0.382 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.q_proj in 0.361 seconds
+Loaded model.layers.16.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.v_proj in 0.365 seconds
+Loaded model.layers.17.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.17.mlp.down_proj in 0.938 seconds
+Loaded HQQLinear quantized model.layers.17.mlp.gate_proj in 0.966 seconds
+Loaded HQQLinear quantized model.layers.17.mlp.up_proj in 1.776 seconds
+Loaded model.layers.17.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.k_proj in 0.397 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.o_proj in 0.401 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.q_proj in 0.400 seconds
+Loaded model.layers.17.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.v_proj in 0.359 seconds
+Loaded model.layers.18.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.18.mlp.down_proj in 0.956 seconds
+Loaded HQQLinear quantized model.layers.18.mlp.gate_proj in 0.964 seconds
+Loaded HQQLinear quantized model.layers.18.mlp.up_proj in 0.946 seconds
+Loaded model.layers.18.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.k_proj in 0.429 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.o_proj in 1.168 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.q_proj in 0.363 seconds
+Loaded model.layers.18.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.v_proj in 0.367 seconds
+Loaded model.layers.19.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.19.mlp.down_proj in 0.962 seconds
+Loaded HQQLinear quantized model.layers.19.mlp.gate_proj in 0.942 seconds
+Loaded HQQLinear quantized model.layers.19.mlp.up_proj in 0.956 seconds
+Loaded model.layers.19.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.k_proj in 0.407 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.o_proj in 0.373 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.q_proj in 0.404 seconds
+Loaded model.layers.19.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.v_proj in 1.342 seconds
+Loaded model.layers.2.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.2.mlp.down_proj in 0.251 seconds
+Loaded HQQLinear quantized model.layers.2.mlp.gate_proj in 0.241 seconds
+Loaded HQQLinear quantized model.layers.2.mlp.up_proj in 0.238 seconds
+Loaded model.layers.2.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.k_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.o_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.q_proj in 0.093 seconds
+Loaded model.layers.2.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.v_proj in 0.094 seconds
+Loaded model.layers.20.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.20.mlp.down_proj in 0.951 seconds
+Loaded HQQLinear quantized model.layers.20.mlp.gate_proj in 0.962 seconds
+Loaded HQQLinear quantized model.layers.20.mlp.up_proj in 0.947 seconds
+Loaded model.layers.20.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.k_proj in 0.370 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.o_proj in 0.401 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.q_proj in 1.345 seconds
+Loaded model.layers.20.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.v_proj in 0.411 seconds
+Loaded model.layers.21.input_layernorm and weight in 0.002 seconds
+Loaded HQQLinear quantized model.layers.21.mlp.down_proj in 0.966 seconds
+Loaded HQQLinear quantized model.layers.21.mlp.gate_proj in 0.923 seconds
+Loaded HQQLinear quantized model.layers.21.mlp.up_proj in 0.971 seconds
+Loaded model.layers.21.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.k_proj in 0.391 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.o_proj in 0.376 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.q_proj in 0.398 seconds
+Loaded model.layers.21.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.v_proj in 0.408 seconds
+Loaded model.layers.22.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.22.mlp.down_proj in 1.392 seconds
+Loaded HQQLinear quantized model.layers.22.mlp.gate_proj in 0.947 seconds
+Loaded HQQLinear quantized model.layers.22.mlp.up_proj in 0.970 seconds
+Loaded model.layers.22.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.k_proj in 0.398 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.o_proj in 0.383 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.q_proj in 0.443 seconds
+Loaded model.layers.22.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.v_proj in 0.375 seconds
+Loaded model.layers.23.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.23.mlp.down_proj in 0.961 seconds
+Loaded HQQLinear quantized model.layers.23.mlp.gate_proj in 1.622 seconds
+Loaded HQQLinear quantized model.layers.23.mlp.up_proj in 0.976 seconds
+Loaded model.layers.23.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.k_proj in 0.362 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.o_proj in 0.406 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.q_proj in 0.391 seconds
+Loaded model.layers.23.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.v_proj in 0.384 seconds
+Loaded model.layers.3.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.3.mlp.down_proj in 0.250 seconds
+Loaded HQQLinear quantized model.layers.3.mlp.gate_proj in 0.237 seconds
+Loaded HQQLinear quantized model.layers.3.mlp.up_proj in 0.246 seconds
+Loaded model.layers.3.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.k_proj in 0.091 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.o_proj in 0.091 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.q_proj in 0.094 seconds
+Loaded model.layers.3.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.v_proj in 0.089 seconds
+Loaded model.layers.4.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.4.mlp.down_proj in 0.235 seconds
+Loaded HQQLinear quantized model.layers.4.mlp.gate_proj in 0.253 seconds
+Loaded HQQLinear quantized model.layers.4.mlp.up_proj in 0.233 seconds
+Loaded model.layers.4.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.k_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.o_proj in 0.093 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.q_proj in 0.095 seconds
+Loaded model.layers.4.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.v_proj in 0.092 seconds
+Loaded model.layers.5.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.5.mlp.down_proj in 1.329 seconds
+Loaded HQQLinear quantized model.layers.5.mlp.gate_proj in 0.250 seconds
+Loaded HQQLinear quantized model.layers.5.mlp.up_proj in 0.232 seconds
+Loaded model.layers.5.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.k_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.o_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.q_proj in 0.092 seconds
+Loaded model.layers.5.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.v_proj in 0.093 seconds
+Loaded model.layers.6.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.6.mlp.down_proj in 0.248 seconds
+Loaded HQQLinear quantized model.layers.6.mlp.gate_proj in 0.242 seconds
+Loaded HQQLinear quantized model.layers.6.mlp.up_proj in 0.233 seconds
+Loaded model.layers.6.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.k_proj in 0.098 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.o_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.q_proj in 0.095 seconds
+Loaded model.layers.6.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.v_proj in 0.091 seconds
+Loaded model.layers.7.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.7.mlp.down_proj in 0.250 seconds
+Loaded HQQLinear quantized model.layers.7.mlp.gate_proj in 0.232 seconds
+Loaded HQQLinear quantized model.layers.7.mlp.up_proj in 0.234 seconds
+Loaded model.layers.7.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.k_proj in 0.096 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.o_proj in 0.095 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.q_proj in 0.096 seconds
+Loaded model.layers.7.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.v_proj in 0.092 seconds
+Loaded model.layers.8.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.8.mlp.down_proj in 0.955 seconds
+Loaded HQQLinear quantized model.layers.8.mlp.gate_proj in 2.081 seconds
+Loaded HQQLinear quantized model.layers.8.mlp.up_proj in 0.952 seconds
+Loaded model.layers.8.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.k_proj in 0.378 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.o_proj in 0.388 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.q_proj in 0.365 seconds
+Loaded model.layers.8.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.v_proj in 0.383 seconds
+Loaded model.layers.9.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.9.mlp.down_proj in 0.943 seconds
+Loaded HQQLinear quantized model.layers.9.mlp.gate_proj in 0.949 seconds
+Loaded HQQLinear quantized model.layers.9.mlp.up_proj in 1.898 seconds
+Loaded model.layers.9.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.k_proj in 0.375 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.o_proj in 0.392 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.q_proj in 0.389 seconds
+Loaded model.layers.9.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.v_proj in 0.385 seconds
+Loaded lm_head and weight in 0.066 seconds
+Loaded model.layers.24.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.24.mlp.down_proj in 0.239 seconds
+Loaded HQQLinear quantized model.layers.24.mlp.gate_proj in 0.252 seconds
+Loaded HQQLinear quantized model.layers.24.mlp.up_proj in 0.248 seconds
+Loaded model.layers.24.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.k_proj in 0.096 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.o_proj in 0.093 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.q_proj in 0.101 seconds
+Loaded model.layers.24.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.v_proj in 0.095 seconds
+Loaded model.layers.25.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.25.mlp.down_proj in 0.238 seconds
+Loaded HQQLinear quantized model.layers.25.mlp.gate_proj in 0.261 seconds
+Loaded HQQLinear quantized model.layers.25.mlp.up_proj in 0.250 seconds
+Loaded model.layers.25.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.k_proj in 0.095 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.o_proj in 0.093 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.q_proj in 0.095 seconds
+Loaded model.layers.25.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.v_proj in 0.103 seconds
+Loaded model.layers.26.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.26.mlp.down_proj in 0.244 seconds
+Loaded HQQLinear quantized model.layers.26.mlp.gate_proj in 0.241 seconds
+Loaded HQQLinear quantized model.layers.26.mlp.up_proj in 1.210 seconds
+Loaded model.layers.26.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.k_proj in 0.098 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.o_proj in 0.093 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.q_proj in 0.096 seconds
+Loaded model.layers.26.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.v_proj in 0.152 seconds
+Loaded model.layers.27.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.27.mlp.down_proj in 0.242 seconds
+Loaded HQQLinear quantized model.layers.27.mlp.gate_proj in 0.237 seconds
+Loaded HQQLinear quantized model.layers.27.mlp.up_proj in 0.235 seconds
+Loaded model.layers.27.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.k_proj in 0.097 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.o_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.q_proj in 0.096 seconds
+Loaded model.layers.27.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.v_proj in 0.097 seconds
+Loaded model.layers.28.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.28.mlp.down_proj in 0.249 seconds
+Loaded HQQLinear quantized model.layers.28.mlp.gate_proj in 0.236 seconds
+Loaded HQQLinear quantized model.layers.28.mlp.up_proj in 0.235 seconds
+Loaded model.layers.28.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.k_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.o_proj in 0.095 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.q_proj in 0.096 seconds
+Loaded model.layers.28.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.v_proj in 0.095 seconds
+Loaded model.layers.29.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.29.mlp.down_proj in 0.254 seconds
+Loaded HQQLinear quantized model.layers.29.mlp.gate_proj in 0.240 seconds
+Loaded HQQLinear quantized model.layers.29.mlp.up_proj in 0.240 seconds
+Loaded model.layers.29.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.k_proj in 0.095 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.o_proj in 0.096 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.q_proj in 0.096 seconds
+Loaded model.layers.29.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.v_proj in 0.095 seconds
+Loaded model.layers.30.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.30.mlp.down_proj in 0.240 seconds
+Loaded HQQLinear quantized model.layers.30.mlp.gate_proj in 0.236 seconds
+Loaded HQQLinear quantized model.layers.30.mlp.up_proj in 0.236 seconds
+Loaded model.layers.30.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.k_proj in 0.097 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.o_proj in 0.095 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.q_proj in 0.098 seconds
+Loaded model.layers.30.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.v_proj in 0.097 seconds
+Loaded model.layers.31.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.31.mlp.down_proj in 1.292 seconds
+Loaded HQQLinear quantized model.layers.31.mlp.gate_proj in 0.255 seconds
+Loaded HQQLinear quantized model.layers.31.mlp.up_proj in 0.235 seconds
+Loaded model.layers.31.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.k_proj in 0.095 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.o_proj in 0.094 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.q_proj in 0.094 seconds
+Loaded model.layers.31.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.v_proj in 0.094 seconds
+Loaded model.norm and weight in 0.000 seconds
+Loaded model weights in 103.558 seconds</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> load_and_quantize_parallel(name_param, load_func, model, <span class="op">**</span>kwargs):</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    name, param <span class="op">=</span> name_param</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    load_func(model, name, param, <span class="op">**</span>kwargs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>compute_dtype <span class="op">=</span> torch.bfloat16</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"meta-llama/Llama-2-7b-hf"</span></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>cfg <span class="op">=</span> AutoConfig.from_pretrained(model_name)</span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>cfg.use_cache <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>cfg._attn_implementation <span class="op">=</span> <span class="st">"sdpa"</span></span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a><span class="co"># cfg.num_hidden_layers = 8 # DEBUG</span></span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a><span class="co"># load model on meta device without calling init and replace nn.Linear with Linear4bit</span></span>
+<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> init_empty_weights():</span>
+<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a>    model_fast <span class="op">=</span> AutoModelForCausalLM.from_config(cfg)</span>
+<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># </span><span class="al">TODO</span><span class="co">: Tune BaseQuantizeConfig.</span></span>
+<span id="cb42-14"><a href="#cb42-14" aria-hidden="true" tabindex="-1"></a>    quant_config <span class="op">=</span> BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, </span>
+<span id="cb42-15"><a href="#cb42-15" aria-hidden="true" tabindex="-1"></a>                                      group_size<span class="op">=</span><span class="dv">64</span>, </span>
+<span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a>                                      quant_zero<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb42-17"><a href="#cb42-17" aria-hidden="true" tabindex="-1"></a>                                      quant_scale<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb42-18"><a href="#cb42-18" aria-hidden="true" tabindex="-1"></a>                                      offload_meta<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb42-19"><a href="#cb42-19" aria-hidden="true" tabindex="-1"></a>    model_fast.model <span class="op">=</span> replace_linear_hqq(model_fast.model, quant_config, device_n<span class="op">=</span>torch.cuda.current_device(),</span>
+<span id="cb42-20"><a href="#cb42-20" aria-hidden="true" tabindex="-1"></a>                                          compute_dtype<span class="op">=</span>compute_dtype, del_orig<span class="op">=</span><span class="va">True</span>, initialize<span class="op">=</span><span class="va">False</span>)     </span>
+<span id="cb42-21"><a href="#cb42-21" aria-hidden="true" tabindex="-1"></a>    HQQLinear.set_backend(HQQBackend.ATEN_BACKPROP)</span>
+<span id="cb42-22"><a href="#cb42-22" aria-hidden="true" tabindex="-1"></a>model_fast.is_loaded_in_4bit <span class="op">=</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>local_rank <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>low_memory <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>load_param_skip_names <span class="op">=</span> []</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>rank <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Loading model"</span>, rank)</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>start <span class="op">=</span> time.time()</span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> filename <span class="kw">in</span> files:</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>    weights <span class="op">=</span> safetensors.torch.load_file(filename)</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    parallel(load_and_quantize_parallel, weights.items(), n_workers<span class="op">=</span><span class="dv">8</span>, threadpool<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>             load_func<span class="op">=</span>load_and_quantize_hqq, model<span class="op">=</span>model_fast, </span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>             dtype<span class="op">=</span>torch.bfloat16, device<span class="op">=</span>local_rank, skip_names<span class="op">=</span>load_param_skip_names, </span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>             is_meta_rank<span class="op">=</span>(low_memory <span class="kw">and</span> rank<span class="op">!=</span><span class="dv">0</span>), verbose<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Loaded model weights in </span><span class="sc">{</span>time<span class="sc">.</span>time()<span class="op">-</span>start<span class="sc">:.3f}</span><span class="ss"> seconds"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Loading model 0
+Loaded model.layers.0.input_layernorm and weight in 0.003 seconds
+Loaded model.layers.0.post_attention_layernorm and weight in 0.004 seconds
+Loaded model.layers.0.self_attn.rotary_emb and inv_freq in 0.032 seconds
+Loaded model.embed_tokens and weight in 0.203 seconds
+Loaded model.layers.1.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.k_proj in 1.016 seconds
+Loaded HQQLinear quantized model.layers.0.mlp.gate_proj in 1.065 seconds
+Loaded HQQLinear quantized model.layers.0.mlp.down_proj in 1.201 seconds
+Loaded model.layers.1.post_attention_layernorm and weight in 0.008 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.v_proj in 1.155 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.q_proj in 1.211 seconds
+Loaded HQQLinear quantized model.layers.0.mlp.up_proj in 1.252 seconds
+Loaded model.layers.1.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.0.self_attn.o_proj in 1.386 seconds
+Loaded model.layers.10.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.1.mlp.down_proj in 1.298 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.o_proj in 0.402 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.v_proj in 1.823 seconds
+Loaded model.layers.10.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.k_proj in 2.032 seconds
+Loaded HQQLinear quantized model.layers.1.mlp.up_proj in 2.188 seconds
+Loaded HQQLinear quantized model.layers.1.self_attn.q_proj in 2.030 seconds
+Loaded model.layers.10.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.1.mlp.gate_proj in 2.246 seconds
+Loaded model.layers.11.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.10.mlp.down_proj in 2.360 seconds
+Loaded HQQLinear quantized model.layers.10.mlp.gate_proj in 2.378 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.v_proj in 0.571 seconds
+Loaded model.layers.11.post_attention_layernorm and weight in 0.018 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.k_proj in 0.867 seconds
+Loaded HQQLinear quantized model.layers.10.mlp.up_proj in 2.499 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.q_proj in 0.913 seconds
+Loaded HQQLinear quantized model.layers.10.self_attn.o_proj in 0.953 seconds
+Loaded model.layers.11.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded model.layers.12.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.11.mlp.down_proj in 0.997 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.k_proj in 0.773 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.o_proj in 1.063 seconds
+Loaded model.layers.12.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.v_proj in 0.863 seconds
+Loaded HQQLinear quantized model.layers.12.mlp.down_proj in 0.906 seconds
+Loaded HQQLinear quantized model.layers.11.self_attn.q_proj in 1.017 seconds
+Loaded model.layers.12.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.11.mlp.gate_proj in 1.516 seconds
+Loaded model.layers.13.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.11.mlp.up_proj in 1.494 seconds
+Loaded HQQLinear quantized model.layers.12.mlp.gate_proj in 1.054 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.o_proj in 0.673 seconds
+Loaded model.layers.13.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.v_proj in 0.639 seconds
+Loaded HQQLinear quantized model.layers.12.mlp.up_proj in 1.140 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.k_proj in 0.902 seconds
+Loaded model.layers.13.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.12.self_attn.q_proj in 0.934 seconds
+Loaded model.layers.14.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.13.mlp.down_proj in 0.963 seconds
+Loaded HQQLinear quantized model.layers.13.mlp.up_proj in 0.965 seconds
+Loaded HQQLinear quantized model.layers.13.mlp.gate_proj in 1.018 seconds
+Loaded model.layers.14.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.k_proj in 0.812 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.q_proj in 0.942 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.v_proj in 0.828 seconds
+Loaded model.layers.14.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.14.mlp.down_proj in 0.778 seconds
+Loaded HQQLinear quantized model.layers.13.self_attn.o_proj in 1.024 seconds
+Loaded model.layers.15.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.o_proj in 0.542 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.k_proj in 1.054 seconds
+Loaded model.layers.15.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.14.mlp.up_proj in 1.978 seconds
+Loaded HQQLinear quantized model.layers.14.mlp.gate_proj in 2.594 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.v_proj in 2.121 seconds
+Loaded model.layers.15.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.14.self_attn.q_proj in 2.161 seconds
+Loaded model.layers.16.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.15.mlp.down_proj in 2.245 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.k_proj in 1.701 seconds
+Loaded HQQLinear quantized model.layers.15.mlp.up_proj in 2.032 seconds
+Loaded model.layers.16.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.15.mlp.gate_proj in 2.374 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.o_proj in 1.184 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.v_proj in 0.704 seconds
+Loaded model.layers.16.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.15.self_attn.q_proj in 0.981 seconds
+Loaded model.layers.17.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.k_proj in 0.747 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.o_proj in 0.767 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.v_proj in 0.632 seconds
+Loaded HQQLinear quantized model.layers.16.self_attn.q_proj in 0.738 seconds
+Loaded model.layers.17.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.16.mlp.gate_proj in 1.288 seconds
+Loaded HQQLinear quantized model.layers.16.mlp.up_proj in 1.285 seconds
+Loaded HQQLinear quantized model.layers.16.mlp.down_proj in 1.503 seconds
+Loaded model.layers.17.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded model.layers.18.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.17.mlp.down_proj in 1.219 secondsLoaded HQQLinear quantized model.layers.17.mlp.gate_proj in 1.209 seconds
+
+Loaded HQQLinear quantized model.layers.17.self_attn.o_proj in 0.855 seconds
+Loaded model.layers.18.post_attention_layernorm and weight in 0.029 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.k_proj in 0.922 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.q_proj in 0.810 seconds
+Loaded HQQLinear quantized model.layers.17.self_attn.v_proj in 0.849 seconds
+Loaded model.layers.18.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.17.mlp.up_proj in 1.460 seconds
+Loaded model.layers.19.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.18.mlp.down_proj in 1.052 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.k_proj in 0.612 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.v_proj in 0.581 seconds
+Loaded model.layers.19.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.o_proj in 1.007 seconds
+Loaded HQQLinear quantized model.layers.18.self_attn.q_proj in 1.012 seconds
+Loaded HQQLinear quantized model.layers.18.mlp.gate_proj in 1.167 seconds
+Loaded model.layers.19.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.18.mlp.up_proj in 1.337 seconds
+Loaded model.layers.2.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.19.mlp.down_proj in 1.059 seconds
+Loaded HQQLinear quantized model.layers.19.mlp.gate_proj in 1.102 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.k_proj in 1.013 seconds
+Loaded model.layers.2.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.19.mlp.up_proj in 1.142 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.v_proj in 0.642 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.q_proj in 0.751 seconds
+Loaded model.layers.2.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.19.self_attn.o_proj in 0.763 seconds
+Loaded model.layers.20.input_layernorm and weight in 0.006 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.q_proj in 0.689 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.o_proj in 0.734 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.k_proj in 0.771 seconds
+Loaded model.layers.20.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.2.self_attn.v_proj in 0.785 seconds
+Loaded HQQLinear quantized model.layers.2.mlp.down_proj in 1.439 seconds
+Loaded HQQLinear quantized model.layers.2.mlp.up_proj in 2.440 seconds
+Loaded model.layers.20.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.2.mlp.gate_proj in 2.582 seconds
+Loaded model.layers.21.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.20.mlp.down_proj in 2.197 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.o_proj in 1.730 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.q_proj in 1.778 seconds
+Loaded model.layers.21.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.v_proj in 0.687 seconds
+Loaded HQQLinear quantized model.layers.20.mlp.up_proj in 2.315 seconds
+Loaded HQQLinear quantized model.layers.20.self_attn.k_proj in 2.336 seconds
+Loaded model.layers.21.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.21.mlp.down_proj in 1.099 seconds
+Loaded HQQLinear quantized model.layers.20.mlp.gate_proj in 2.594 seconds
+Loaded model.layers.22.input_layernorm and weight in 0.007 seconds
+Loaded HQQLinear quantized model.layers.21.mlp.gate_proj in 1.152 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.o_proj in 0.748 seconds
+Loaded model.layers.22.post_attention_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.k_proj in 0.829 seconds
+Loaded HQQLinear quantized model.layers.21.mlp.up_proj in 1.203 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.v_proj in 0.771 seconds
+Loaded model.layers.22.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.21.self_attn.q_proj in 0.923 seconds
+Loaded model.layers.23.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.22.mlp.down_proj in 0.902 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.q_proj in 0.727 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.o_proj in 0.917 seconds
+Loaded model.layers.23.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.v_proj in 0.663 seconds
+Loaded HQQLinear quantized model.layers.22.mlp.gate_proj in 1.293 seconds
+Loaded HQQLinear quantized model.layers.22.self_attn.k_proj in 1.033 seconds
+Loaded model.layers.23.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.22.mlp.up_proj in 1.217 seconds
+Loaded model.layers.3.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.v_proj in 0.604 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.o_proj in 0.804 seconds
+Loaded HQQLinear quantized model.layers.23.mlp.down_proj in 1.380 seconds
+Loaded model.layers.3.post_attention_layernorm and weight in 0.021 seconds
+Loaded HQQLinear quantized model.layers.23.mlp.up_proj in 1.099 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.k_proj in 1.108 seconds
+Loaded HQQLinear quantized model.layers.23.mlp.gate_proj in 1.493 seconds
+Loaded model.layers.3.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.3.mlp.down_proj in 1.088 seconds
+Loaded model.layers.4.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.23.self_attn.q_proj in 1.148 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.v_proj in 0.351 seconds
+Loaded HQQLinear quantized model.layers.3.mlp.gate_proj in 1.057 seconds
+Loaded model.layers.4.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.o_proj in 0.767 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.k_proj in 0.978 seconds
+Loaded HQQLinear quantized model.layers.3.self_attn.q_proj in 0.947 seconds
+Loaded model.layers.4.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.3.mlp.up_proj in 1.494 seconds
+Loaded model.layers.5.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.4.mlp.gate_proj in 1.188 seconds
+Loaded HQQLinear quantized model.layers.4.mlp.down_proj in 1.268 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.q_proj in 0.671 seconds
+Loaded model.layers.5.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.k_proj in 2.018 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.o_proj in 1.968 seconds
+Loaded HQQLinear quantized model.layers.4.self_attn.v_proj in 1.807 seconds
+Loaded model.layers.5.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.4.mlp.up_proj in 2.425 seconds
+Loaded model.layers.6.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.5.mlp.up_proj in 1.880 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.q_proj in 0.679 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.o_proj in 0.709 seconds
+Loaded model.layers.6.post_attention_layernorm and weight in 0.007 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.v_proj in 0.771 seconds
+Loaded HQQLinear quantized model.layers.5.self_attn.k_proj in 2.119 seconds
+Loaded HQQLinear quantized model.layers.5.mlp.gate_proj in 2.472 seconds
+Loaded model.layers.6.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.5.mlp.down_proj in 2.591 seconds
+Loaded model.layers.7.input_layernorm and weight in 0.003 seconds
+Loaded HQQLinear quantized model.layers.6.mlp.down_proj in 1.020 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.q_proj in 0.825 seconds
+Loaded HQQLinear quantized model.layers.6.mlp.up_proj in 1.041 seconds
+Loaded model.layers.7.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.k_proj in 1.067 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.o_proj in 0.937 seconds
+Loaded HQQLinear quantized model.layers.6.self_attn.v_proj in 0.784 seconds
+Loaded model.layers.7.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.6.mlp.gate_proj in 1.527 seconds
+Loaded model.layers.8.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.7.mlp.gate_proj in 1.046 seconds
+Loaded HQQLinear quantized model.layers.7.mlp.down_proj in 1.137 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.v_proj in 0.752 seconds
+Loaded model.layers.8.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.q_proj in 0.925 seconds
+Loaded HQQLinear quantized model.layers.7.mlp.up_proj in 1.073 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.o_proj in 1.033 seconds
+Loaded model.layers.8.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.7.self_attn.k_proj in 1.133 seconds
+Loaded model.layers.9.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.8.mlp.down_proj in 1.100 seconds
+Loaded HQQLinear quantized model.layers.8.mlp.gate_proj in 1.235 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.v_proj in 0.645 seconds
+Loaded model.layers.9.post_attention_layernorm and weight in 0.002 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.o_proj in 0.756 seconds
+Loaded HQQLinear quantized model.layers.8.mlp.up_proj in 1.346 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.k_proj in 0.991 seconds
+Loaded model.layers.9.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.8.self_attn.q_proj in 0.897 seconds
+Loaded HQQLinear quantized model.layers.9.mlp.down_proj in 1.155 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.o_proj in 0.619 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.k_proj in 0.670 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.q_proj in 0.528 seconds
+Loaded HQQLinear quantized model.layers.9.mlp.gate_proj in 0.970 seconds
+Loaded HQQLinear quantized model.layers.9.self_attn.v_proj in 0.566 seconds
+Loaded HQQLinear quantized model.layers.9.mlp.up_proj in 0.756 seconds
+Loaded lm_head and weight in 0.330 secondsLoaded model.layers.24.input_layernorm and weight in 0.006 seconds
+
+Loaded model.layers.24.post_attention_layernorm and weight in 0.016 seconds
+Loaded model.layers.24.self_attn.rotary_emb and inv_freq in 0.001 seconds
+Loaded model.layers.25.input_layernorm and weight in 0.008 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.o_proj in 1.008 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.v_proj in 1.013 seconds
+Loaded HQQLinear quantized model.layers.24.mlp.down_proj in 1.464 seconds
+Loaded model.layers.25.post_attention_layernorm and weight in 0.002 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.k_proj in 1.130 seconds
+Loaded HQQLinear quantized model.layers.24.mlp.up_proj in 1.169 seconds
+Loaded HQQLinear quantized model.layers.24.self_attn.q_proj in 1.338 seconds
+Loaded model.layers.25.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.24.mlp.gate_proj in 1.436 seconds
+Loaded model.layers.26.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.25.mlp.down_proj in 1.402 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.k_proj in 0.522 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.o_proj in 0.653 seconds
+Loaded model.layers.26.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.25.mlp.up_proj in 0.961 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.q_proj in 0.841 seconds
+Loaded HQQLinear quantized model.layers.25.mlp.gate_proj in 1.216 seconds
+Loaded model.layers.26.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.25.self_attn.v_proj in 0.897 seconds
+Loaded model.layers.27.input_layernorm and weight in 0.008 seconds
+Loaded HQQLinear quantized model.layers.26.mlp.gate_proj in 0.943 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.k_proj in 0.647 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.q_proj in 0.673 seconds
+Loaded model.layers.27.post_attention_layernorm and weight in 0.003 seconds
+Loaded HQQLinear quantized model.layers.26.mlp.up_proj in 1.228 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.o_proj in 0.894 seconds
+Loaded HQQLinear quantized model.layers.26.mlp.down_proj in 1.497 seconds
+Loaded model.layers.27.self_attn.rotary_emb and inv_freq in 0.002 seconds
+Loaded HQQLinear quantized model.layers.26.self_attn.v_proj in 0.723 seconds
+Loaded model.layers.28.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.27.mlp.gate_proj in 1.199 seconds
+Loaded HQQLinear quantized model.layers.27.mlp.up_proj in 1.211 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.o_proj in 0.845 seconds
+Loaded model.layers.28.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.k_proj in 1.028 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.q_proj in 0.857 seconds
+Loaded HQQLinear quantized model.layers.27.self_attn.v_proj in 0.933 seconds
+Loaded model.layers.28.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.27.mlp.down_proj in 1.740 seconds
+Loaded HQQLinear quantized model.layers.28.mlp.down_proj in 1.025 seconds
+Loaded model.layers.29.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.q_proj in 0.835 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.o_proj in 0.862 seconds
+Loaded model.layers.29.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.v_proj in 0.866 seconds
+Loaded HQQLinear quantized model.layers.28.mlp.up_proj in 1.158 seconds
+Loaded HQQLinear quantized model.layers.28.self_attn.k_proj in 1.129 seconds
+Loaded model.layers.29.self_attn.rotary_emb and inv_freq in 0.002 seconds
+Loaded HQQLinear quantized model.layers.28.mlp.gate_proj in 1.404 seconds
+Loaded model.layers.30.input_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.29.mlp.gate_proj in 1.084 seconds
+Loaded HQQLinear quantized model.layers.29.mlp.down_proj in 1.131 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.v_proj in 1.754 seconds
+Loaded model.layers.30.post_attention_layernorm and weight in 0.003 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.k_proj in 2.057 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.o_proj in 1.930 seconds
+Loaded HQQLinear quantized model.layers.29.self_attn.q_proj in 2.034 seconds
+Loaded model.layers.30.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.29.mlp.up_proj in 2.393 seconds
+Loaded model.layers.31.input_layernorm and weight in 0.001 seconds
+Loaded HQQLinear quantized model.layers.30.mlp.up_proj in 1.942 seconds
+Loaded HQQLinear quantized model.layers.30.mlp.gate_proj in 2.062 seconds
+Loaded HQQLinear quantized model.layers.30.mlp.down_proj in 2.221 seconds
+Loaded model.layers.31.post_attention_layernorm and weight in 0.000 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.o_proj in 0.757 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.v_proj in 0.664 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.k_proj in 1.169 seconds
+Loaded model.layers.31.self_attn.rotary_emb and inv_freq in 0.000 seconds
+Loaded HQQLinear quantized model.layers.30.self_attn.q_proj in 1.238 seconds
+Loaded model.norm and weight in 0.015 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.k_proj in 0.725 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.q_proj in 0.440 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.o_proj in 0.576 seconds
+Loaded HQQLinear quantized model.layers.31.mlp.gate_proj in 0.969 seconds
+Loaded HQQLinear quantized model.layers.31.mlp.down_proj in 1.118 seconds
+Loaded HQQLinear quantized model.layers.31.mlp.up_proj in 0.988 seconds
+Loaded HQQLinear quantized model.layers.31.self_attn.v_proj in 0.358 seconds
+Loaded model weights in 36.317 seconds</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (n1,p1), (n2,p2) <span class="kw">in</span> <span class="bu">zip</span>(model.named_parameters(), model_fast.named_parameters()):</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> n1 <span class="op">==</span> n2:</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="st">"proj"</span> <span class="kw">in</span> n1:</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>            <span class="cf">assert</span> torch.allclose(p1.view(torch.uint8), p2.view(torch.uint8))</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">assert</span> torch.allclose(p1, p2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> HQQDORA(nn.Module):</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, base_layer, lora_rank, lora_dropout):</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.base_layer <span class="op">=</span> base_layer</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>        dtype <span class="op">=</span> <span class="bu">getattr</span>(base_layer, <span class="st">"compute_dtype"</span>, <span class="bu">next</span>(base_layer.parameters()).dtype)</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>        device <span class="op">=</span> <span class="bu">next</span>(base_layer.parameters()).device</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>        std_dev <span class="op">=</span> <span class="dv">1</span> <span class="op">/</span> torch.sqrt(torch.tensor(lora_rank).<span class="bu">float</span>())</span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lora_A <span class="op">=</span> nn.Parameter(torch.randn(base_layer.out_features, lora_rank).to(device<span class="op">=</span>device,dtype<span class="op">=</span>dtype)<span class="op">*</span>std_dev)</span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lora_B <span class="op">=</span> nn.Parameter(torch.zeros(lora_rank, base_layer.in_features).to(device<span class="op">=</span>device,dtype<span class="op">=</span>dtype))</span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.m <span class="op">=</span> nn.Parameter(<span class="va">self</span>.base_layer.dequantize_aten().clone().norm(p<span class="op">=</span><span class="dv">2</span>, dim<span class="op">=</span><span class="dv">0</span>, keepdim<span class="op">=</span><span class="va">True</span>))</span>
+<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):        </span>
+<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a>        lora <span class="op">=</span> torch.matmul(<span class="va">self</span>.lora_A, <span class="va">self</span>.lora_B)</span>
+<span id="cb46-17"><a href="#cb46-17" aria-hidden="true" tabindex="-1"></a>        adapted <span class="op">=</span> <span class="va">self</span>.base_layer.dequantize_aten() <span class="op">+</span> lora</span>
+<span id="cb46-18"><a href="#cb46-18" aria-hidden="true" tabindex="-1"></a>        column_norm <span class="op">=</span> adapted.norm(p<span class="op">=</span><span class="dv">2</span>, dim<span class="op">=</span><span class="dv">0</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb46-19"><a href="#cb46-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-20"><a href="#cb46-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> torch.equal(<span class="va">self</span>.m, column_norm)</span>
+<span id="cb46-21"><a href="#cb46-21" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb46-22"><a href="#cb46-22" aria-hidden="true" tabindex="-1"></a>        calc_weights <span class="op">=</span> <span class="va">self</span>.m <span class="op">*</span> (adapted <span class="op">/</span> column_norm)</span>
+<span id="cb46-23"><a href="#cb46-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-24"><a href="#cb46-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> torch.allclose(<span class="va">self</span>.base_layer.dequantize_aten(), calc_weights)</span>
+<span id="cb46-25"><a href="#cb46-25" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb46-26"><a href="#cb46-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> torch.matmul(x, calc_weights.t())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>quant_config <span class="op">=</span> BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, </span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>                                  group_size<span class="op">=</span><span class="dv">64</span>, </span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>                                  quant_zero<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>                                  quant_scale<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>                                  offload_meta<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>base_layer <span class="op">=</span> HQQLinear(nn.Linear(<span class="dv">128</span>,<span class="dv">256</span>), quant_config, compute_dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>dora <span class="op">=</span> HQQDORA(base_layer, <span class="dv">8</span>, <span class="dv">0</span>)</span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(<span class="dv">2</span>,<span class="dv">4</span>,<span class="dv">128</span>).cuda()</span>
+<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>torch.isclose(dora(x), torch.matmul(x, base_layer.dequantize_aten().t())).<span class="bu">float</span>().mean()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>tensor(0.9985, device='cuda:0')</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DoRALayer(nn.Module):</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, d_in, d_out, rank<span class="op">=</span><span class="dv">4</span>, weight<span class="op">=</span><span class="va">None</span>, bias<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> weight <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.weight <span class="op">=</span> nn.Parameter(weight, requires_grad<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.weight <span class="op">=</span> nn.Parameter(torch.Tensor(d_out, d_in), requires_grad<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> bias <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.bias <span class="op">=</span> nn.Parameter(bias, requires_grad<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb49-12"><a href="#cb49-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb49-13"><a href="#cb49-13" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.bias <span class="op">=</span> nn.Parameter(torch.Tensor(d_out), requires_grad<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb49-14"><a href="#cb49-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-15"><a href="#cb49-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># m = Magnitude column-wise across output dimension</span></span>
+<span id="cb49-16"><a href="#cb49-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.m <span class="op">=</span> nn.Parameter(<span class="va">self</span>.weight.norm(p<span class="op">=</span><span class="dv">2</span>, dim<span class="op">=</span><span class="dv">0</span>, keepdim<span class="op">=</span><span class="va">True</span>))</span>
+<span id="cb49-17"><a href="#cb49-17" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb49-18"><a href="#cb49-18" aria-hidden="true" tabindex="-1"></a>        std_dev <span class="op">=</span> <span class="dv">1</span> <span class="op">/</span> torch.sqrt(torch.tensor(rank).<span class="bu">float</span>())</span>
+<span id="cb49-19"><a href="#cb49-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lora_A <span class="op">=</span> nn.Parameter(torch.randn(d_out, rank)<span class="op">*</span>std_dev)</span>
+<span id="cb49-20"><a href="#cb49-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lora_B <span class="op">=</span> nn.Parameter(torch.zeros(rank, d_in))</span>
+<span id="cb49-21"><a href="#cb49-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-22"><a href="#cb49-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb49-23"><a href="#cb49-23" aria-hidden="true" tabindex="-1"></a>        lora <span class="op">=</span> torch.matmul(<span class="va">self</span>.lora_A, <span class="va">self</span>.lora_B)</span>
+<span id="cb49-24"><a href="#cb49-24" aria-hidden="true" tabindex="-1"></a>        adapted <span class="op">=</span> <span class="va">self</span>.weight <span class="op">+</span> lora</span>
+<span id="cb49-25"><a href="#cb49-25" aria-hidden="true" tabindex="-1"></a>        column_norm <span class="op">=</span> adapted.norm(p<span class="op">=</span><span class="dv">2</span>, dim<span class="op">=</span><span class="dv">0</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb49-26"><a href="#cb49-26" aria-hidden="true" tabindex="-1"></a>        norm_adapted <span class="op">=</span> adapted <span class="op">/</span> column_norm</span>
+<span id="cb49-27"><a href="#cb49-27" aria-hidden="true" tabindex="-1"></a>        calc_weights <span class="op">=</span> <span class="va">self</span>.m <span class="op">*</span> norm_adapted</span>
+<span id="cb49-28"><a href="#cb49-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> F.linear(x, calc_weights, <span class="va">self</span>.bias)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> nn.Linear(<span class="dv">128</span>,<span class="dv">256</span>,bias<span class="op">=</span><span class="va">False</span>).cuda()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>dora <span class="op">=</span> DoRALayer(<span class="dv">128</span>,<span class="dv">256</span>,weight<span class="op">=</span>m.weight).cuda()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a>dora(x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>tensor([[[-0.2144, -0.1476, -0.0111,  ...,  0.3745,  0.1425, -0.1142],
+         [ 0.3202, -0.2039,  0.7589,  ..., -0.2859, -1.4159,  0.9623],
+         [-0.1714,  0.4437, -0.3377,  ...,  1.4839,  1.1261,  0.1933],
+         [-0.5015,  0.3812,  1.3170,  ...,  0.3666,  0.0282,  0.3237]],
+
+        [[ 0.2638,  0.0497,  0.2547,  ...,  0.5097,  0.0237,  0.8447],
+         [ 0.2788, -0.1295, -0.6743,  ...,  0.1924,  1.0936,  0.3154],
+         [-0.4722,  0.2377,  0.0317,  ..., -0.6017, -0.4683, -0.1920],
+         [-0.4582,  0.4022, -0.5113,  ...,  0.9794,  1.3093, -0.3878]]],
+       device='cuda:0', grad_fn=&lt;ViewBackward0&gt;)</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb54"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>m(x)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>tensor([[[-0.2144, -0.1476, -0.0111,  ...,  0.3745,  0.1425, -0.1142],
+         [ 0.3202, -0.2039,  0.7589,  ..., -0.2859, -1.4159,  0.9623],
+         [-0.1714,  0.4437, -0.3377,  ...,  1.4839,  1.1261,  0.1933],
+         [-0.5015,  0.3812,  1.3170,  ...,  0.3666,  0.0282,  0.3237]],
+
+        [[ 0.2638,  0.0497,  0.2547,  ...,  0.5097,  0.0237,  0.8447],
+         [ 0.2788, -0.1295, -0.6743,  ...,  0.1924,  1.0936,  0.3154],
+         [-0.4722,  0.2377,  0.0317,  ..., -0.6017, -0.4683, -0.1920],
+         [-0.4582,  0.4022, -0.5113,  ...,  0.9794,  1.3093, -0.3878]]],
+       device='cuda:0', grad_fn=&lt;UnsafeViewBackward0&gt;)</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a>x.is_meta</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>False</code></pre>
+</div>
+</div>
+<section id="tests" class="level3">
+<h3 class="anchored" data-anchor-id="tests">Tests</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb58"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> hqq.engine.hf <span class="im">import</span> HQQModelForCausalLM, AutoTokenizer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>hqq_aten package available. Set backend to HQQBackend.ATEN for faster inference and HQQBackend.ATEN_BACKPROP for faster training!</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb60"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>compute_dtype <span class="op">=</span> torch.bfloat16</span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"meta-llama/Llama-2-7b-hf"</span></span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>cfg <span class="op">=</span> AutoConfig.from_pretrained(model_name)</span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a>cfg.use_cache <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a>cfg._attn_implementation <span class="op">=</span> <span class="st">"sdpa"</span></span>
+<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a>cfg.num_hidden_layers <span class="op">=</span> <span class="dv">2</span> <span class="co"># DEBUG</span></span>
+<span id="cb60-8"><a href="#cb60-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-9"><a href="#cb60-9" aria-hidden="true" tabindex="-1"></a><span class="co"># load model on meta device without calling init and replace nn.Linear with Linear4bit</span></span>
+<span id="cb60-10"><a href="#cb60-10" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_config(cfg)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>LlamaForCausalLM(
+  (model): LlamaModel(
+    (embed_tokens): Embedding(32000, 4096)
+    (layers): ModuleList(
+      (0-1): 2 x LlamaDecoderLayer(
+        (self_attn): LlamaSdpaAttention(
+          (q_proj): Linear(in_features=4096, out_features=4096, bias=False)
+          (k_proj): Linear(in_features=4096, out_features=4096, bias=False)
+          (v_proj): Linear(in_features=4096, out_features=4096, bias=False)
+          (o_proj): Linear(in_features=4096, out_features=4096, bias=False)
+          (rotary_emb): LlamaRotaryEmbedding()
+        )
+        (mlp): LlamaMLP(
+          (gate_proj): Linear(in_features=4096, out_features=11008, bias=False)
+          (up_proj): Linear(in_features=4096, out_features=11008, bias=False)
+          (down_proj): Linear(in_features=11008, out_features=4096, bias=False)
+          (act_fn): SiLU()
+        )
+        (input_layernorm): LlamaRMSNorm()
+        (post_attention_layernorm): LlamaRMSNorm()
+      )
+    )
+    (norm): LlamaRMSNorm()
+  )
+  (lm_head): Linear(in_features=4096, out_features=32000, bias=False)
+)</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a>quant_config <span class="op">=</span> BaseQuantizeConfig(nbits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">64</span>, view_as_float<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a>HQQModelForCausalLM.quantize_model_(model, quant_config, compute_dtype<span class="op">=</span>torch.bfloat16)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>100%|███████████████████████████████████████████████████████████████████████| 2/2 [00:00&lt;00:00, 144.69it/s]
+100%|████████████████████████████████████████████████████████████████████████| 2/2 [00:06&lt;00:00,  3.38s/it]</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a>model.model.layers[<span class="dv">0</span>].self_attn.q_proj.meta</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb66"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a>model.model.layers[<span class="dv">0</span>].self_attn.q_proj.W_q</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb67"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a>model.save_quantized(<span class="st">"/weka/home-keremturgutlu/models"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb68"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
+<span id="cb68-2"><a href="#cb68-2" aria-hidden="true" tabindex="-1"></a>quantized_config <span class="op">=</span> json.load(<span class="bu">open</span>(<span class="st">"/weka/home-keremturgutlu/models/config.json"</span>))</span>
+<span id="cb68-3"><a href="#cb68-3" aria-hidden="true" tabindex="-1"></a>quantized_weights <span class="op">=</span> torch.load(<span class="st">"/weka/home-keremturgutlu/models/qmodel.pt"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb69"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>quantized_config</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb70"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="bu">list</span>(quantized_weights.keys())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb71"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a>quantized_weights[<span class="st">'model.layers.0.self_attn.q_proj'</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb72"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a>model_qt <span class="op">=</span> HQQModelForCausalLM.from_quantized(<span class="st">"/weka/home-keremturgutlu/models"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>100%|██████████████████████████████████████████████████████████████████████| 2/2 [00:00&lt;00:00, 1804.39it/s]
+100%|███████████████████████████████████████████████████████████████████████| 2/2 [00:00&lt;00:00, 364.04it/s]</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb74"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="bu">list</span>(n <span class="cf">for</span> n,p <span class="kw">in</span> model_qt.named_modules())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>['',
+ 'model',
+ 'model.embed_tokens',
+ 'model.layers',
+ 'model.layers.0',
+ 'model.layers.0.self_attn',
+ 'model.layers.0.self_attn.q_proj',
+ 'model.layers.0.self_attn.k_proj',
+ 'model.layers.0.self_attn.v_proj',
+ 'model.layers.0.self_attn.o_proj',
+ 'model.layers.0.self_attn.rotary_emb',
+ 'model.layers.0.mlp',
+ 'model.layers.0.mlp.gate_proj',
+ 'model.layers.0.mlp.up_proj',
+ 'model.layers.0.mlp.down_proj',
+ 'model.layers.0.mlp.act_fn',
+ 'model.layers.0.input_layernorm',
+ 'model.layers.0.post_attention_layernorm',
+ 'model.layers.1',
+ 'model.layers.1.self_attn',
+ 'model.layers.1.self_attn.q_proj',
+ 'model.layers.1.self_attn.k_proj',
+ 'model.layers.1.self_attn.v_proj',
+ 'model.layers.1.self_attn.o_proj',
+ 'model.layers.1.self_attn.rotary_emb',
+ 'model.layers.1.mlp',
+ 'model.layers.1.mlp.gate_proj',
+ 'model.layers.1.mlp.up_proj',
+ 'model.layers.1.mlp.down_proj',
+ 'model.layers.1.mlp.act_fn',
+ 'model.layers.1.input_layernorm',
+ 'model.layers.1.post_attention_layernorm',
+ 'model.norm',
+ 'lm_head']</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb76"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> assert_state_dict(v1,v2):</span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(v1, torch.Tensor):</span>
+<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> torch.isclose(v1,v2, rtol<span class="op">=</span><span class="fl">1e-5</span>).<span class="bu">float</span>().mean().item() <span class="op">&gt;</span> <span class="fl">0.99</span></span>
+<span id="cb76-4"><a href="#cb76-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(v1, <span class="bu">dict</span>):</span>
+<span id="cb76-5"><a href="#cb76-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _k,_v <span class="kw">in</span> v1.items():</span>
+<span id="cb76-6"><a href="#cb76-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">isinstance</span>(_v, torch.Tensor):</span>
+<span id="cb76-7"><a href="#cb76-7" aria-hidden="true" tabindex="-1"></a>                <span class="cf">assert</span> torch.equal(_v, v2[_k])</span>
+<span id="cb76-8"><a href="#cb76-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb76-9"><a href="#cb76-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">assert</span> _v <span class="op">==</span> v2[_k]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb77"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n,p <span class="kw">in</span> model.named_parameters():</span>
+<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a>    module_key, _, value_key <span class="op">=</span> n.rpartition(<span class="st">'.'</span>)</span>
+<span id="cb77-4"><a href="#cb77-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb77-5"><a href="#cb77-5" aria-hidden="true" tabindex="-1"></a>    d1 <span class="op">=</span> model.get_submodule(module_key).state_dict()</span>
+<span id="cb77-6"><a href="#cb77-6" aria-hidden="true" tabindex="-1"></a>    d2 <span class="op">=</span> model_qt.get_submodule(module_key).state_dict()</span>
+<span id="cb77-7"><a href="#cb77-7" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb77-8"><a href="#cb77-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (k1,v1),(k2,v2) <span class="kw">in</span> <span class="bu">zip</span>(d1.items(), d2.items()):</span>
+<span id="cb77-9"><a href="#cb77-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> k1 <span class="op">==</span> k2</span>
+<span id="cb77-10"><a href="#cb77-10" aria-hidden="true" tabindex="-1"></a>        assert_state_dict(v1,v2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb78"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> safetensors</span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> safetensors.torch <span class="im">import</span> save_file</span>
+<span id="cb78-3"><a href="#cb78-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb79"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>weights_init <span class="op">=</span> safetensors.torch.load_file(<span class="st">"/weka/home-keremturgutlu/models/hqq_lora_dummy_init/model_state_dict.safetensors"</span>)</span>
+<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> safetensors.torch.load_file(<span class="st">"/weka/home-keremturgutlu/models/hqq_lora_dummy/model_state_dict.safetensors"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb80"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a>weights</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>{'_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.down_proj.lora_AB.0.weight': tensor([[-9.1553e-03,  6.0120e-03, -1.9379e-03,  ..., -7.8201e-04,
+          -6.0120e-03,  7.2861e-04],
+         [ 1.8616e-03,  8.5449e-03,  6.9275e-03,  ..., -1.3885e-03,
+           7.6599e-03,  3.2043e-03],
+         [ 7.6599e-03,  3.3417e-03,  4.3030e-03,  ...,  4.6082e-03,
+          -5.3711e-03, -1.1139e-03],
+         ...,
+         [-4.0894e-03, -4.3945e-03,  8.1787e-03,  ...,  5.4321e-03,
+          -8.4839e-03, -8.4839e-03],
+         [-6.6757e-05,  3.9368e-03,  6.0272e-04,  ..., -5.1270e-03,
+          -4.8218e-03, -5.3711e-03],
+         [ 4.9744e-03,  1.6556e-03, -1.5640e-03,  ...,  4.1504e-03,
+           7.7515e-03,  6.8359e-03]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.down_proj.lora_AB.1.weight': tensor([[-6.2943e-05,  7.9155e-05, -7.9632e-05,  ...,  7.5340e-05,
+           7.9632e-05,  7.6294e-05],
+         [-6.8665e-05, -7.5817e-05,  7.2002e-05,  ...,  6.6757e-05,
+          -7.6771e-05, -7.1526e-05],
+         [ 5.6744e-05,  7.1049e-05,  3.7432e-05,  ..., -6.0320e-05,
+           7.2956e-05,  6.6757e-05],
+         ...,
+         [ 7.4387e-05,  8.0109e-05, -8.0109e-05,  ...,  7.5817e-05,
+           7.9155e-05,  7.8678e-05],
+         [-7.5817e-05, -7.6771e-05, -7.2002e-05,  ..., -2.3365e-05,
+          -7.7248e-05, -7.4863e-05],
+         [-7.5817e-05, -7.9155e-05,  7.9632e-05,  ..., -7.4387e-05,
+          -7.9632e-05, -7.8201e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.gate_proj.lora_AB.0.weight': tensor([[ 0.0073,  0.0133, -0.0061,  ..., -0.0149, -0.0030, -0.0018],
+         [ 0.0068, -0.0081, -0.0049,  ...,  0.0010,  0.0132,  0.0133],
+         [ 0.0018,  0.0052,  0.0026,  ..., -0.0033, -0.0059,  0.0154],
+         ...,
+         [ 0.0055, -0.0043,  0.0087,  ..., -0.0020,  0.0033, -0.0044],
+         [-0.0128, -0.0116,  0.0094,  ...,  0.0137,  0.0044, -0.0029],
+         [ 0.0077,  0.0098,  0.0051,  ..., -0.0092, -0.0049, -0.0122]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.gate_proj.lora_AB.1.weight': tensor([[ 6.4850e-05,  6.5327e-05,  4.8876e-05,  ..., -6.1512e-05,
+          -6.6280e-05,  1.1921e-06],
+         [ 7.6294e-05, -7.4387e-05, -7.2002e-05,  ...,  7.8678e-05,
+          -7.8678e-05,  6.2466e-05],
+         [-5.6744e-05, -3.1710e-05,  2.6226e-05,  ...,  5.3644e-05,
+           4.9353e-05,  4.8637e-05],
+         ...,
+         [ 6.4850e-05,  4.3392e-05, -7.0572e-05,  ...,  7.5817e-05,
+          -7.5340e-05,  3.7432e-05],
+         [-4.5300e-05, -3.4809e-05,  6.9618e-05,  ..., -7.2956e-05,
+           7.2479e-05, -1.7881e-05],
+         [ 5.6744e-05, -4.6968e-05, -4.1723e-05,  ...,  6.9141e-05,
+          -6.2466e-05, -2.6345e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.up_proj.lora_AB.0.weight': tensor([[ 0.0087,  0.0010,  0.0009,  ..., -0.0128,  0.0009, -0.0126],
+         [-0.0003, -0.0109,  0.0051,  ...,  0.0079,  0.0143,  0.0076],
+         [ 0.0022, -0.0090, -0.0013,  ...,  0.0071, -0.0138, -0.0023],
+         ...,
+         [-0.0103, -0.0153, -0.0061,  ..., -0.0076, -0.0004,  0.0093],
+         [ 0.0066,  0.0066, -0.0040,  ...,  0.0046, -0.0043, -0.0063],
+         [ 0.0049, -0.0040, -0.0118,  ...,  0.0065,  0.0112,  0.0110]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.up_proj.lora_AB.1.weight': tensor([[-3.7909e-05, -6.8665e-05, -7.6294e-05,  ...,  6.9141e-05,
+           6.9618e-05,  7.4387e-05],
+         [-6.0081e-05,  7.7724e-05,  7.8678e-05,  ..., -7.5817e-05,
+          -7.6771e-05, -7.8201e-05],
+         [-6.3419e-05, -6.9618e-05, -7.7248e-05,  ...,  6.9618e-05,
+           7.0572e-05,  7.5817e-05],
+         ...,
+         [-6.2943e-05,  6.1512e-05,  6.5327e-05,  ..., -3.7432e-05,
+          -5.5075e-05, -6.2466e-05],
+         [ 4.5300e-05, -6.1512e-05, -6.9141e-05,  ...,  5.0068e-05,
+           5.7936e-05,  6.5804e-05],
+         [-2.7776e-05,  7.1526e-05,  7.6294e-05,  ..., -6.6757e-05,
+          -7.1049e-05, -7.4387e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.k_proj.lora_AB.0.weight': tensor([[ 9.3994e-03, -5.8594e-03,  1.2085e-02,  ..., -5.6152e-03,
+           1.2573e-02, -1.9531e-03],
+         [-9.6436e-03,  8.5449e-04,  5.6152e-03,  ..., -1.2207e-04,
+          -1.3672e-02,  5.6152e-03],
+         [-2.4414e-04, -9.0332e-03,  1.5259e-02,  ..., -7.3242e-03,
+           1.2451e-02,  1.4893e-02],
+         ...,
+         [-1.2085e-02,  1.0620e-02,  1.5503e-02,  ...,  1.1841e-02,
+           8.9111e-03, -4.6387e-03],
+         [ 1.2573e-02, -8.4229e-03, -1.0376e-02,  ..., -1.3794e-02,
+           1.5381e-02,  8.5449e-04],
+         [ 3.7842e-03, -8.0566e-03,  9.0804e-08,  ...,  7.5251e-07,
+           1.2207e-04, -1.0986e-03]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.k_proj.lora_AB.1.weight': tensor([[-2.3842e-05, -2.2292e-05, -3.2187e-05,  ...,  3.5524e-05,
+          -3.4094e-05, -1.0967e-05],
+         [ 1.1444e-05,  2.6107e-05,  3.2425e-05,  ..., -3.6240e-05,
+           3.7193e-05,  1.1206e-05],
+         [-2.9325e-05, -1.8954e-05, -3.6955e-05,  ...,  4.2200e-05,
+          -3.5048e-05,  3.7402e-06],
+         ...,
+         [ 3.1948e-05,  4.5300e-06,  1.0192e-05,  ..., -9.8944e-06,
+           2.6941e-05,  7.8678e-06],
+         [-5.2929e-05, -1.3590e-05, -2.5392e-05,  ...,  3.3855e-05,
+          -5.3644e-05, -2.2173e-05],
+         [ 3.5286e-05, -1.1623e-06,  1.7524e-05,  ..., -2.5988e-05,
+           4.7445e-05,  2.3961e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.q_proj.lora_AB.0.weight': tensor([[-0.0155, -0.0035,  0.0033,  ..., -0.0059,  0.0007, -0.0093],
+         [ 0.0115, -0.0034,  0.0081,  ...,  0.0051,  0.0127, -0.0049],
+         [-0.0087,  0.0144,  0.0103,  ..., -0.0065,  0.0093,  0.0146],
+         ...,
+         [ 0.0151, -0.0115, -0.0122,  ..., -0.0070, -0.0148, -0.0117],
+         [-0.0115, -0.0093, -0.0039,  ..., -0.0133,  0.0023,  0.0063],
+         [-0.0115,  0.0020,  0.0040,  ..., -0.0060, -0.0133,  0.0048]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.q_proj.lora_AB.1.weight': tensor([[ 1.3888e-05, -2.3246e-05,  2.0504e-05,  ...,  3.6478e-05,
+           1.6332e-05,  1.6570e-05],
+         [-3.5763e-05,  3.3379e-05, -3.5048e-05,  ..., -4.7922e-05,
+          -2.2650e-05, -3.0756e-05],
+         [ 3.5524e-05, -7.8082e-06,  1.1206e-05,  ...,  2.5749e-05,
+          -1.3113e-05,  2.5034e-05],
+         ...,
+         [-6.2943e-05,  5.7936e-05, -4.1246e-05,  ..., -6.4850e-05,
+           3.9339e-05, -6.4373e-05],
+         [ 5.0306e-05, -1.9185e-07,  4.5538e-05,  ...,  5.2214e-05,
+          -3.9101e-05,  4.6730e-05],
+         [ 1.1802e-05,  3.9101e-05, -3.6716e-05,  ..., -5.8651e-05,
+          -4.5776e-05, -3.1948e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.v_proj.lora_AB.0.weight': tensor([[-0.0106,  0.0065, -0.0109,  ...,  0.0062,  0.0038,  0.0002],
+         [-0.0055,  0.0057,  0.0050,  ..., -0.0070, -0.0024, -0.0087],
+         [ 0.0095,  0.0143,  0.0037,  ...,  0.0115,  0.0078, -0.0049],
+         ...,
+         [-0.0072,  0.0030,  0.0105,  ..., -0.0118,  0.0081, -0.0072],
+         [-0.0040, -0.0140, -0.0146,  ..., -0.0135, -0.0066, -0.0125],
+         [ 0.0120,  0.0150,  0.0098,  ..., -0.0070,  0.0013,  0.0040]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.0._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.v_proj.lora_AB.1.weight': tensor([[ 7.9155e-05, -7.3910e-05, -6.2466e-05,  ...,  7.9632e-05,
+           7.8678e-05,  7.9632e-05],
+         [ 7.8201e-05, -7.6294e-05,  7.6294e-05,  ...,  7.8678e-05,
+           7.8678e-05,  7.9632e-05],
+         [-6.9618e-05, -7.8678e-05,  5.3883e-05,  ..., -7.8678e-05,
+          -7.9155e-05, -7.9632e-05],
+         ...,
+         [ 5.9128e-05, -7.6294e-05,  7.0572e-05,  ..., -3.2425e-05,
+          -7.6294e-05, -7.6294e-05],
+         [ 7.6771e-05,  3.5048e-05,  6.8665e-05,  ...,  7.8678e-05,
+           7.6771e-05,  7.9155e-05],
+         [-7.9155e-05,  7.2002e-05, -7.4863e-05,  ..., -7.9632e-05,
+          -7.9632e-05, -7.9632e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.down_proj.lora_AB.0.weight': tensor([[-0.0056,  0.0058,  0.0009,  ...,  0.0093,  0.0085, -0.0095],
+         [ 0.0070,  0.0086,  0.0059,  ...,  0.0032, -0.0076,  0.0060],
+         [-0.0048, -0.0082, -0.0031,  ..., -0.0081,  0.0025,  0.0034],
+         ...,
+         [-0.0009, -0.0007, -0.0081,  ...,  0.0042,  0.0076,  0.0089],
+         [ 0.0038,  0.0073,  0.0059,  ..., -0.0019,  0.0092, -0.0081],
+         [ 0.0038,  0.0071, -0.0018,  ...,  0.0075, -0.0034,  0.0079]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.down_proj.lora_AB.1.weight': tensor([[-7.5817e-05,  7.8678e-05, -7.9632e-05,  ...,  7.8678e-05,
+          -7.8678e-05,  7.9632e-05],
+         [ 7.6294e-05, -7.8678e-05,  7.9632e-05,  ..., -7.9155e-05,
+           7.8678e-05, -7.9632e-05],
+         [-7.7724e-05,  7.9155e-05, -7.9632e-05,  ...,  7.9632e-05,
+          -7.9632e-05,  7.9632e-05],
+         ...,
+         [-7.8201e-05,  7.9632e-05, -8.0109e-05,  ...,  7.9632e-05,
+          -7.9632e-05,  7.9632e-05],
+         [ 7.7724e-05, -7.8678e-05,  7.9632e-05,  ..., -7.9632e-05,
+           7.8678e-05, -7.9632e-05],
+         [ 7.9155e-05, -7.9632e-05,  8.0109e-05,  ..., -7.9632e-05,
+           8.0109e-05, -8.0109e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.gate_proj.lora_AB.0.weight': tensor([[-0.0096, -0.0100,  0.0037,  ..., -0.0073, -0.0101, -0.0040],
+         [-0.0025,  0.0040,  0.0065,  ..., -0.0127,  0.0104, -0.0142],
+         [-0.0060, -0.0090, -0.0045,  ..., -0.0031,  0.0145,  0.0132],
+         ...,
+         [ 0.0122, -0.0121,  0.0054,  ...,  0.0054, -0.0125,  0.0112],
+         [-0.0071,  0.0063,  0.0035,  ..., -0.0060, -0.0054,  0.0007],
+         [ 0.0020,  0.0083, -0.0073,  ..., -0.0084,  0.0153, -0.0142]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.gate_proj.lora_AB.1.weight': tensor([[-7.6294e-05, -7.6771e-05, -7.6294e-05,  ..., -6.8665e-05,
+          -7.8678e-05,  7.6294e-05],
+         [-6.2466e-05, -6.2943e-05, -5.5075e-05,  ..., -4.1008e-05,
+          -7.0095e-05,  6.0558e-05],
+         [ 7.1049e-05,  7.2479e-05,  7.2002e-05,  ...,  6.0558e-05,
+           7.6771e-05, -7.2002e-05],
+         ...,
+         [-3.7193e-05, -5.5313e-05, -6.4373e-05,  ..., -3.5286e-05,
+          -7.1049e-05,  6.0320e-05],
+         [-6.6757e-05, -6.7234e-05, -6.2466e-05,  ..., -4.4584e-05,
+          -7.2956e-05,  6.5804e-05],
+         [ 3.0249e-06, -2.0504e-05, -4.1723e-05,  ..., -1.6570e-05,
+          -5.3167e-05,  3.1233e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.up_proj.lora_AB.0.weight': tensor([[-0.0005,  0.0094, -0.0146,  ..., -0.0083, -0.0120, -0.0103],
+         [ 0.0025, -0.0045, -0.0135,  ...,  0.0118, -0.0095, -0.0140],
+         [ 0.0032,  0.0143, -0.0052,  ...,  0.0096, -0.0054, -0.0072],
+         ...,
+         [-0.0143, -0.0050, -0.0090,  ..., -0.0144, -0.0083, -0.0112],
+         [-0.0150,  0.0100,  0.0040,  ...,  0.0137, -0.0118,  0.0140],
+         [-0.0010,  0.0009, -0.0063,  ...,  0.0103, -0.0009, -0.0050]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.mlp._fsdp_wrapped_module.up_proj.lora_AB.1.weight': tensor([[-7.6294e-05,  6.2943e-05,  4.2677e-05,  ...,  6.9141e-05,
+           6.8188e-05,  6.5327e-05],
+         [ 7.2002e-05, -4.6492e-05, -3.1948e-05,  ..., -5.7697e-05,
+          -5.5552e-05, -5.2929e-05],
+         [-7.7248e-05,  6.8665e-05,  6.1035e-05,  ...,  7.1049e-05,
+           7.2479e-05,  6.9141e-05],
+         ...,
+         [ 7.5340e-05, -6.4850e-05, -5.9366e-05,  ..., -5.9843e-05,
+          -6.9618e-05, -5.6267e-05],
+         [-7.8678e-05,  7.2956e-05,  6.1512e-05,  ...,  7.6294e-05,
+           7.5817e-05,  7.5340e-05],
+         [-6.3896e-05,  2.2888e-05, -1.5199e-05,  ...,  4.9353e-05,
+           2.7776e-05,  4.1962e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.k_proj.lora_AB.0.weight': tensor([[-0.0049, -0.0134, -0.0111,  ...,  0.0154,  0.0094,  0.0090],
+         [-0.0101, -0.0021, -0.0040,  ...,  0.0038, -0.0110, -0.0116],
+         [-0.0076,  0.0057, -0.0142,  ...,  0.0046,  0.0100,  0.0110],
+         ...,
+         [ 0.0057,  0.0115, -0.0063,  ...,  0.0096,  0.0128,  0.0013],
+         [-0.0142, -0.0150, -0.0146,  ...,  0.0126,  0.0061,  0.0038],
+         [ 0.0066, -0.0099,  0.0096,  ..., -0.0072,  0.0090, -0.0112]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.k_proj.lora_AB.1.weight': tensor([[-8.8811e-06,  1.8120e-05, -8.8215e-06,  ..., -1.4424e-05,
+           2.6464e-05,  8.2254e-06],
+         [ 6.9439e-06, -1.4365e-05,  6.8843e-06,  ...,  1.4782e-05,
+          -2.8014e-05, -1.2636e-05],
+         [-9.8348e-07, -2.2650e-06, -1.0133e-06,  ..., -1.2591e-06,
+           5.5507e-07,  1.9372e-06],
+         ...,
+         [-5.1975e-05, -7.4387e-05, -6.6280e-05,  ..., -7.2479e-05,
+           7.2956e-05,  6.9618e-05],
+         [ 5.2452e-05,  7.4387e-05,  6.5327e-05,  ...,  7.2479e-05,
+          -7.2956e-05, -6.9618e-05],
+         [-5.8889e-05, -7.5340e-05, -6.9141e-05,  ..., -7.4387e-05,
+           7.5340e-05,  7.2002e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.q_proj.lora_AB.0.weight': tensor([[-0.0050,  0.0043, -0.0043,  ..., -0.0057,  0.0144,  0.0094],
+         [-0.0121, -0.0088, -0.0100,  ...,  0.0059, -0.0149, -0.0121],
+         [-0.0100,  0.0126, -0.0060,  ..., -0.0100,  0.0118, -0.0099],
+         ...,
+         [ 0.0122, -0.0095, -0.0039,  ..., -0.0140, -0.0016, -0.0140],
+         [-0.0048,  0.0043, -0.0027,  ..., -0.0020, -0.0090, -0.0046],
+         [-0.0150, -0.0138, -0.0146,  ...,  0.0029,  0.0095,  0.0100]],
+        dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.q_proj.lora_AB.1.weight': tensor([[ 3.4809e-05, -9.7752e-06,  2.8491e-05,  ..., -3.5524e-05,
+           1.6928e-05,  4.7445e-05],
+         [ 2.4319e-05, -4.1425e-06,  1.8716e-05,  ..., -2.5153e-05,
+           8.8215e-06,  3.6001e-05],
+         [ 1.1563e-05, -1.8254e-06,  7.8678e-06,  ..., -1.0610e-05,
+           2.9206e-06,  1.8239e-05],
+         ...,
+         [ 7.2956e-05, -3.6240e-05,  6.8665e-05,  ..., -7.0095e-05,
+           6.5804e-05,  7.5340e-05],
+         [-7.3433e-05,  3.6240e-05, -6.8665e-05,  ...,  7.1049e-05,
+          -6.5327e-05, -7.5817e-05],
+         [ 7.2002e-05, -3.2187e-05,  6.6280e-05,  ..., -6.8665e-05,
+           6.2943e-05,  7.4863e-05]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.v_proj.lora_AB.0.weight': tensor([[-3.7537e-03,  1.1108e-02, -3.1281e-04,  ...,  7.4463e-03,
+           1.1230e-02, -1.5015e-02],
+         [-1.4114e-03,  9.1553e-03,  1.2695e-02,  ..., -8.4229e-03,
+           1.2817e-02,  8.0566e-03],
+         [-1.5259e-02, -1.5335e-03,  2.9907e-03,  ..., -1.2817e-02,
+          -1.4114e-03, -1.2329e-02],
+         ...,
+         [ 1.0254e-02,  4.5166e-03,  1.2939e-02,  ..., -1.1108e-02,
+           6.7139e-03, -1.3062e-02],
+         [ 6.4373e-05, -1.0452e-03, -1.0452e-03,  ..., -1.7624e-03,
+           6.7139e-03,  1.1841e-02],
+         [-5.8594e-03, -1.2329e-02, -1.1841e-02,  ..., -2.2583e-03,
+          -3.7384e-03,  9.1553e-03]], dtype=torch.bfloat16),
+ '_fsdp_wrapped_module.model.layers.1._fsdp_wrapped_module._checkpoint_wrapped_module.self_attn._fsdp_wrapped_module.v_proj.lora_AB.1.weight': tensor([[-7.9632e-05,  7.9632e-05, -7.9632e-05,  ..., -7.9632e-05,
+          -7.9632e-05,  7.8678e-05],
+         [-7.5340e-05, -7.7724e-05,  7.9632e-05,  ...,  7.9155e-05,
+           7.4387e-05, -6.9141e-05],
+         [ 8.0109e-05, -8.0109e-05,  8.0109e-05,  ...,  8.0109e-05,
+           8.0109e-05, -8.0109e-05],
+         ...,
+         [ 7.9632e-05, -8.0109e-05,  7.9632e-05,  ...,  7.9632e-05,
+           7.9632e-05, -7.9632e-05],
+         [ 7.8678e-05, -7.8678e-05,  7.9632e-05,  ...,  7.9632e-05,
+           7.9632e-05, -7.8678e-05],
+         [ 7.9632e-05, -8.0109e-05,  7.9632e-05,  ...,  7.9632e-05,
+           7.9632e-05, -7.9632e-05]], dtype=torch.bfloat16)}</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb82"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k, v <span class="kw">in</span> weights_init.items():</span>
+<span id="cb82-2"><a href="#cb82-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb82-3"><a href="#cb82-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="st">'base_layer'</span> <span class="kw">in</span> k) <span class="kw">or</span> (<span class="st">'W_q'</span> <span class="kw">in</span> k):    </span>
+<span id="cb82-4"><a href="#cb82-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> torch.equal(v.view(torch.uint8), weights[k].view(torch.uint8)):</span>
+<span id="cb82-5"><a href="#cb82-5" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="st">"Changed"</span>, k)</span>
+<span id="cb82-6"><a href="#cb82-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb82-7"><a href="#cb82-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> torch.equal(v, weights[k]):</span>
+<span id="cb82-8"><a href="#cb82-8" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="st">"Changed"</span>, k)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Changed model.layers.0.mlp.down_proj.lora_AB.0.weight
+Changed model.layers.0.mlp.down_proj.lora_AB.1.weight
+Changed model.layers.0.mlp.gate_proj.lora_AB.0.weight
+Changed model.layers.0.mlp.gate_proj.lora_AB.1.weight
+Changed model.layers.0.mlp.up_proj.lora_AB.0.weight
+Changed model.layers.0.mlp.up_proj.lora_AB.1.weight
+Changed model.layers.0.self_attn.k_proj.lora_AB.0.weight
+Changed model.layers.0.self_attn.k_proj.lora_AB.1.weight
+Changed model.layers.0.self_attn.q_proj.lora_AB.0.weight
+Changed model.layers.0.self_attn.q_proj.lora_AB.1.weight
+Changed model.layers.0.self_attn.v_proj.lora_AB.0.weight
+Changed model.layers.0.self_attn.v_proj.lora_AB.1.weight
+Changed model.layers.1.mlp.down_proj.lora_AB.0.weight
+Changed model.layers.1.mlp.down_proj.lora_AB.1.weight
+Changed model.layers.1.mlp.gate_proj.lora_AB.0.weight
+Changed model.layers.1.mlp.gate_proj.lora_AB.1.weight
+Changed model.layers.1.mlp.up_proj.lora_AB.0.weight
+Changed model.layers.1.mlp.up_proj.lora_AB.1.weight
+Changed model.layers.1.self_attn.k_proj.lora_AB.0.weight
+Changed model.layers.1.self_attn.k_proj.lora_AB.1.weight
+Changed model.layers.1.self_attn.q_proj.lora_AB.0.weight
+Changed model.layers.1.self_attn.q_proj.lora_AB.1.weight
+Changed model.layers.1.self_attn.v_proj.lora_AB.0.weight
+Changed model.layers.1.self_attn.v_proj.lora_AB.1.weight</code></pre>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  const viewSource = window.document.getElementById('quarto-view-source') ||
+                     window.document.getElementById('quarto-code-tools-source');
+  if (viewSource) {
+    const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+    viewSource.addEventListener("click", function(e) {
+      if (sourceUrl) {
+        // rstudio viewer pane
+        if (/\bcapabilities=\b/.test(window.location)) {
+          window.open(sourceUrl);
+        } else {
+          window.location.href = sourceUrl;
+        }
+      } else {
+        const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+        modal.show();
+      }
+      return false;
+    });
+  }
+  function toggleCodeHandler(show) {
+    return function(e) {
+      const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+      for (let i=0; i<detailsSrc.length; i++) {
+        const details = detailsSrc[i].parentElement;
+        if (show) {
+          details.open = true;
+        } else {
+          details.removeAttribute("open");
+        }
+      }
+      const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+      const fromCls = show ? "hidden" : "unhidden";
+      const toCls = show ? "unhidden" : "hidden";
+      for (let i=0; i<cellCodeDivs.length; i++) {
+        const codeDiv = cellCodeDivs[i];
+        if (codeDiv.classList.contains(fromCls)) {
+          codeDiv.classList.remove(fromCls);
+          codeDiv.classList.add(toCls);
+        } 
+      }
+      return false;
+    }
+  }
+  const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+  if (hideAllCode) {
+    hideAllCode.addEventListener("click", toggleCodeHandler(false));
+  }
+  const showAllCode = window.document.getElementById("quarto-show-all-code");
+  if (showAllCode) {
+    showAllCode.addEventListener("click", toggleCodeHandler(true));
+  }
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

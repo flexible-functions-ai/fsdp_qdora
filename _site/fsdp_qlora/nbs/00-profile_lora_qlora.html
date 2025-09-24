@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Efficient Finetuning of Llama 3 70B with FSDP QDora - Base Model</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="../../styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">FSDP QDora Tutorial</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html" rel="" target="">
+ <span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../fsdp_qdora_ucg_v1.html" rel="" target="">
+ <span class="menu-text">FSDP QDora Tutorial</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../sd_ulmfit.html" rel="" target="">
+ <span class="menu-text">Text Transfer Learning with ULMFit - Medical LLM V1</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/rubanzasilva" rel="" target=""><i class="bi bi-github" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://flexiblefunctions.com" rel="" target="">
+ <span class="menu-text">Flexible Functions</span></a>
+  </li>  
+</ul>
+            <div class="quarto-navbar-tools">
+</div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#lora" id="toc-lora" class="nav-link active" data-scroll-target="#lora">LoRA</a></li>
+  <li><a href="#lora-gradient-ckpt." id="toc-lora-gradient-ckpt." class="nav-link" data-scroll-target="#lora-gradient-ckpt.">LORA + Gradient Ckpt.</a></li>
+  <li><a href="#qlora" id="toc-qlora" class="nav-link" data-scroll-target="#qlora">QLoRA</a></li>
+  <li><a href="#qlora-gradient-ckpt." id="toc-qlora-gradient-ckpt." class="nav-link" data-scroll-target="#qlora-gradient-ckpt.">QLORA + Gradient Ckpt.</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Base Model</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> bitsandbytes <span class="im">as</span> bnb</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn.functional <span class="im">as</span> F</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoModelForCausalLM</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.utils.quantization_config <span class="im">import</span> BitsAndBytesConfig</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.pytorch_utils <span class="im">import</span> Conv1D</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> transformers</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> LlamaConfig, LlamaForCausalLM</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.integrations.bitsandbytes <span class="im">import</span> replace_with_bnb_linear</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.utils.quantization_config <span class="im">import</span> BitsAndBytesConfig</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.models.llama.modeling_llama <span class="im">import</span> LlamaDecoderLayer</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> peft.tuners.lora.config <span class="im">import</span> LoraConfig</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> peft.mapping <span class="im">import</span> get_peft_model</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> peft.utils.peft_types <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> gc</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> inspect</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> accelerate.utils <span class="im">import</span> set_seed</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> functools <span class="im">import</span> partial</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>save_dir <span class="op">=</span> Path(<span class="st">"profile_snapshots/"</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>os.makedirs(save_dir, exist_ok<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>transformers.logging.set_verbosity_warning()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> malloc_in_gb():</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.cuda.memory_allocated()<span class="op">/</span><span class="fl">1e9</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_model_size_config(model_size):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> model_size <span class="op">==</span> <span class="st">"DEBUG"</span>:</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>        model_size_config <span class="op">=</span> <span class="bu">dict</span>(hidden_size<span class="op">=</span><span class="dv">128</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>                                num_hidden_layers<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>                                num_attention_heads<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>                                num_key_value_heads<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>                                intermediate_size<span class="op">=</span><span class="dv">256</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> model_size <span class="op">==</span> <span class="st">"60M"</span>:</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        model_size_config <span class="op">=</span> <span class="bu">dict</span>(hidden_size<span class="op">=</span><span class="dv">512</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>                                num_hidden_layers<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>                                num_attention_heads<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>                                num_key_value_heads<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>                                intermediate_size<span class="op">=</span><span class="dv">1024</span>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> model_size <span class="op">==</span> <span class="st">"120M"</span>:</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        model_size_config <span class="op">=</span> <span class="bu">dict</span>(hidden_size<span class="op">=</span><span class="dv">768</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>                                num_hidden_layers<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>                                num_attention_heads<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>                                num_key_value_heads<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>                                intermediate_size<span class="op">=</span><span class="dv">1536</span>)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> model_size <span class="op">==</span> <span class="st">"290M"</span>:</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        model_size_config <span class="op">=</span> <span class="bu">dict</span>(hidden_size<span class="op">=</span><span class="dv">1024</span>,</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>                                num_hidden_layers<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>                                num_attention_heads<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>                                num_key_value_heads<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>                                intermediate_size<span class="op">=</span><span class="dv">4096</span>)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> model_size <span class="op">==</span> <span class="st">"1B"</span>:</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>        model_size_config <span class="op">=</span> <span class="bu">dict</span>(hidden_size<span class="op">=</span><span class="dv">2048</span>,</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>                                num_hidden_layers<span class="op">=</span><span class="dv">24</span>,</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>                                num_attention_heads<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>                                num_key_value_heads<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>                                intermediate_size<span class="op">=</span><span class="dv">4096</span>)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> model_size <span class="op">==</span> <span class="st">"7B"</span>:</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>        model_size_config <span class="op">=</span> {}</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model_size_config</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_model(model_size<span class="op">=</span><span class="st">"1B"</span>):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    model_size_config <span class="op">=</span> get_model_size_config(model_size)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># download model weights and config files.</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    config <span class="op">=</span> LlamaConfig()</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    config.update(model_size_config)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> LlamaForCausalLM(config)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> free_memory():</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    gc.collect()</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    torch.cuda.empty_cache()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Memory allocated: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Memory allocated: 0.000 GB</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># create dummy inputs</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> create_model(<span class="st">"DEBUG"</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>vocab_size <span class="op">=</span> model.model.embed_tokens.weight.size(<span class="dv">0</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> [torch.randint(<span class="dv">0</span>, vocab_size, (<span class="dv">1</span>, sl)) <span class="cf">for</span> sl <span class="kw">in</span> [<span class="dv">512</span>,<span class="dv">1024</span>,<span class="dv">2048</span>,<span class="dv">3072</span>]]</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Memory allocated: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Memory allocated: 0.000 GB</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> profile_model(create_model_func, inference<span class="op">=</span><span class="va">False</span>, save_filename<span class="op">=</span><span class="st">"mem_profile.pickle"</span>):</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co">    https://pytorch.org/tutorials/intermediate/torch_compile_tutorial.html#demonstrating-speedups</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co">    https://pytorch.org/docs/stable/torch_cuda_memory.html</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co">    https://medium.com/pytorch/how-activation-checkpointing-enables-scaling-up-training-deep-learning-models-7a93ae01ff2d</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="co">    https://pytorch.org/tutorials/intermediate/autograd_saved_tensors_hooks_tutorial.html</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    set_seed(<span class="dv">42</span>)</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    torch.cuda.memory._record_memory_history()</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x <span class="kw">in</span> inputs:</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"Input Size:</span><span class="sc">{</span><span class="bu">tuple</span>(x.size())<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        start <span class="op">=</span> torch.cuda.Event(enable_timing<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        end <span class="op">=</span> torch.cuda.Event(enable_timing<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        start.record()</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> inference:</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>                model <span class="op">=</span> create_model_func()</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>                model.to(<span class="st">"cuda"</span>, torch.bfloat16)<span class="op">;</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"Memory allocated [MODEL]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>                output <span class="op">=</span> model(x.to(<span class="st">"cuda"</span>))</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>                <span class="bu">print</span>(<span class="ss">f"Memory allocated [FWD]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>            model <span class="op">=</span> create_model_func()</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>            model.to(<span class="st">"cuda"</span>, torch.bfloat16)<span class="op">;</span></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Memory allocated [MODEL): </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>            output <span class="op">=</span> model(x.to(<span class="st">"cuda"</span>))</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Memory allocated [FWD]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)            </span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>            output.logits.mean().backward()</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Memory allocated [BWD]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>        end.record()</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>        torch.cuda.synchronize()</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>        secs <span class="op">=</span> start.elapsed_time(end) <span class="op">/</span> <span class="dv">1000</span></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"Elapsed time: </span><span class="sc">{</span>secs<span class="sc">:.3f}</span><span class="ch">\n\n</span><span class="ss">"</span>)</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>        output, model <span class="op">=</span> <span class="va">None</span>, <span class="va">None</span></span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>        free_memory()</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>    torch.cuda.memory._dump_snapshot(save_filename)</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Memory allocated [finish]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># warmup</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_model, <span class="st">"DEBUG"</span>), inference<span class="op">=</span><span class="va">True</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"debug-inference.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL]: 0.018 GB
+Memory allocated [FWD]: 0.093 GB
+Elapsed time: 0.562
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL]: 0.027 GB
+Memory allocated [FWD]: 0.160 GB
+Elapsed time: 0.111
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL]: 0.027 GB
+Memory allocated [FWD]: 0.291 GB
+Elapsed time: 0.096
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL]: 0.027 GB
+Memory allocated [FWD]: 0.425 GB
+Elapsed time: 0.104
+
+
+Memory allocated [finish]: 0.009 GB</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_model, <span class="st">"1B"</span>), inference<span class="op">=</span><span class="va">True</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"base-inference.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL]: 2.311 GB
+Memory allocated [FWD]: 2.478 GB
+Elapsed time: 12.858
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL]: 2.311 GB
+Memory allocated [FWD]: 2.645 GB
+Elapsed time: 12.719
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL]: 2.311 GB
+Memory allocated [FWD]: 2.976 GB
+Elapsed time: 12.735
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL]: 2.311 GB
+Memory allocated [FWD]: 3.322 GB
+Elapsed time: 12.682
+
+
+Memory allocated [finish]: 0.009 GB</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># (1, 4096) OOMs with a 16GB GPU</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_model, <span class="st">"1B"</span>), inference<span class="op">=</span><span class="va">False</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"base-training.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL): 2.311 GB
+Memory allocated [FWD]: 3.605 GB
+Memory allocated [BWD]: 4.764 GB
+Elapsed time: 11.823
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL): 2.320 GB
+Memory allocated [FWD]: 4.907 GB
+Memory allocated [BWD]: 4.930 GB
+Elapsed time: 12.106
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL): 2.320 GB
+Memory allocated [FWD]: 7.493 GB
+Memory allocated [BWD]: 5.260 GB
+Elapsed time: 12.611
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL): 2.320 GB
+Memory allocated [FWD]: 10.093 GB
+Memory allocated [BWD]: 5.606 GB
+Elapsed time: 13.033
+
+
+Memory allocated [finish]: 0.017 GB</code></pre>
+</div>
+</div>
+<section id="lora" class="level3">
+<h3 class="anchored" data-anchor-id="lora">LoRA</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_lora_model(model_size<span class="op">=</span><span class="st">"1B"</span>, gc_enabled<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    model_size_config <span class="op">=</span> get_model_size_config(model_size)</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># download model weights and config files.</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    config <span class="op">=</span> LlamaConfig()</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    config.update(model_size_config)</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> LlamaForCausalLM(config)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    peft_config <span class="op">=</span> LoraConfig(</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>        task_type<span class="op">=</span>TaskType.CAUSAL_LM, inference_mode<span class="op">=</span><span class="va">False</span>, r<span class="op">=</span><span class="dv">8</span>, lora_alpha<span class="op">=</span><span class="dv">32</span>, lora_dropout<span class="op">=</span><span class="fl">0.1</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> get_peft_model(model, peft_config)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> gc_enabled: model.gradient_checkpointing_enable(gradient_checkpointing_kwargs<span class="op">=</span>{<span class="st">"use_reentrant"</span>: <span class="va">False</span>})</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_lora_model, <span class="st">"1B"</span>), inference<span class="op">=</span><span class="va">True</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"lora-inference.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL]: 2.323 GB
+Memory allocated [FWD]: 2.489 GB
+Elapsed time: 12.622
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL]: 2.323 GB
+Memory allocated [FWD]: 2.657 GB
+Elapsed time: 12.293
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL]: 2.323 GB
+Memory allocated [FWD]: 2.988 GB
+Elapsed time: 12.341
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL]: 2.323 GB
+Memory allocated [FWD]: 3.334 GB
+Elapsed time: 12.339
+
+
+Memory allocated [finish]: 0.017 GB</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_lora_model, <span class="st">"1B"</span>), inference<span class="op">=</span><span class="va">False</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"lora-training.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 3.451 GB
+Memory allocated [BWD]: 2.492 GB
+Elapsed time: 11.359
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 4.580 GB
+Memory allocated [BWD]: 2.660 GB
+Elapsed time: 11.946
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 6.835 GB
+Memory allocated [BWD]: 2.991 GB
+Elapsed time: 12.710
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 9.105 GB
+Memory allocated [BWD]: 3.337 GB
+Elapsed time: 13.298
+
+
+Memory allocated [finish]: 0.017 GB</code></pre>
+</div>
+</div>
+</section>
+<section id="lora-gradient-ckpt." class="level3">
+<h3 class="anchored" data-anchor-id="lora-gradient-ckpt.">LORA + Gradient Ckpt.</h3>
+<p>Using default HF grad ckpt strategy which wraps each individual decoder layers.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_lora_model, <span class="st">"1B"</span>, gc_enabled<span class="op">=</span><span class="va">True</span>), inference<span class="op">=</span><span class="va">False</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"lora-gc-training.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL): 2.315 GB
+Memory allocated [FWD]: 2.439 GB
+Memory allocated [BWD]: 2.392 GB
+Elapsed time: 11.923
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 2.573 GB
+Memory allocated [BWD]: 2.458 GB
+Elapsed time: 12.374
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 2.820 GB
+Memory allocated [BWD]: 2.588 GB
+Elapsed time: 12.543
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL): 2.323 GB
+Memory allocated [FWD]: 3.082 GB
+Memory allocated [BWD]: 2.733 GB
+Elapsed time: 13.120
+
+
+Memory allocated [finish]: 0.017 GB</code></pre>
+</div>
+</div>
+</section>
+<section id="qlora" class="level3">
+<h3 class="anchored" data-anchor-id="qlora">QLoRA</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> replace_with_bnb_4bit_linear(</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    modules_to_not_convert<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    current_key_name<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    quantization_config<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    has_been_replaced<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>    quant_storage<span class="op">=</span>torch.uint8, </span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    keep_trainable<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co">    Private method that wraps the recursion for module replacement.</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns the converted model and a boolean that indicates if the conversion has been successfull or not.</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> name, module <span class="kw">in</span> model.named_children():</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> current_key_name <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>            current_key_name <span class="op">=</span> []</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>        current_key_name.append(name)</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (<span class="bu">isinstance</span>(module, nn.Linear) <span class="kw">or</span> <span class="bu">isinstance</span>(module, Conv1D)) <span class="kw">and</span> name <span class="kw">not</span> <span class="kw">in</span> modules_to_not_convert:</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Check if the current key is not in the `modules_to_not_convert`</span></span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> <span class="bu">any</span>(key <span class="kw">in</span> <span class="st">"."</span>.join(current_key_name) <span class="cf">for</span> key <span class="kw">in</span> modules_to_not_convert):</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>                <span class="co"># with init_empty_weights():</span></span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> <span class="bu">isinstance</span>(module, Conv1D):</span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>                    in_features, out_features <span class="op">=</span> module.weight.shape</span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span>:</span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>                    in_features <span class="op">=</span> module.in_features</span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a>                    out_features <span class="op">=</span> module.out_features</span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>                    model._modules[name] <span class="op">=</span> bnb.nn.Linear4bit(</span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a>                        in_features,</span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>                        out_features,</span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a>                        module.bias <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>,</span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a>                        quantization_config.bnb_4bit_compute_dtype,</span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>                        compress_statistics<span class="op">=</span>quantization_config.bnb_4bit_use_double_quant,</span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>                        quant_type<span class="op">=</span>quantization_config.bnb_4bit_quant_type,</span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>                        quant_storage<span class="op">=</span>quant_storage</span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a>                    )</span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a>                    has_been_replaced <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Store the module class in case we need to transpose the weight later</span></span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a>                model._modules[name].source_cls <span class="op">=</span> <span class="bu">type</span>(module)</span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Force requires grad to False to avoid unexpected errors</span></span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> keep_trainable: </span>
+<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a>                    model._modules[name].requires_grad_(<span class="va">True</span>)</span>
+<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span>:</span>
+<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a>                    model._modules[name].requires_grad_(<span class="va">True</span>)</span>
+<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="bu">list</span>(module.children())) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a>            _, has_been_replaced <span class="op">=</span> replace_with_bnb_4bit_linear(</span>
+<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a>                module,</span>
+<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a>                modules_to_not_convert,</span>
+<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a>                current_key_name,</span>
+<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a>                quantization_config,</span>
+<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a>                has_been_replaced<span class="op">=</span>has_been_replaced,</span>
+<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Remove the last key for recursion</span></span>
+<span id="cb26-56"><a href="#cb26-56" aria-hidden="true" tabindex="-1"></a>        current_key_name.pop(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb26-57"><a href="#cb26-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model, has_been_replaced</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_qlora_model(model_size<span class="op">=</span><span class="st">"1B"</span>, with_lora<span class="op">=</span><span class="va">True</span>, gc_enabled<span class="op">=</span><span class="va">False</span>, keep_trainable<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    model_size_config <span class="op">=</span> get_model_size_config(model_size)</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># download model weights and config files.</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    config <span class="op">=</span> LlamaConfig()</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    config.update(model_size_config)</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> LlamaForCausalLM(config)</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    qconfig <span class="op">=</span> BitsAndBytesConfig(load_in_4bit<span class="op">=</span><span class="va">True</span>, </span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>                       bnb_4bit_quant_type<span class="op">=</span><span class="st">"nf4"</span>,</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>                       bnb_4bit_use_double_quant<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>                       bnb_4bit_compute_dtype<span class="op">=</span>torch.bfloat16)</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    model, has_been_replaced <span class="op">=</span> replace_with_bnb_4bit_linear(model,</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>                                                            modules_to_not_convert<span class="op">=</span>[<span class="st">"lm_head"</span>], </span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>                                                            quantization_config<span class="op">=</span>qconfig, </span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>                                                            keep_trainable<span class="op">=</span>keep_trainable, </span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>                                                            quant_storage<span class="op">=</span>torch.bfloat16)</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> has_been_replaced</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> with_lora:</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>        peft_config <span class="op">=</span> LoraConfig(</span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>            task_type<span class="op">=</span>TaskType.CAUSAL_LM, inference_mode<span class="op">=</span><span class="va">False</span>, r<span class="op">=</span><span class="dv">8</span>, lora_alpha<span class="op">=</span><span class="dv">32</span>, lora_dropout<span class="op">=</span><span class="fl">0.1</span></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> get_peft_model(model, peft_config)</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> gc_enabled: model.gradient_checkpointing_enable(gradient_checkpointing_kwargs<span class="op">=</span>{<span class="st">"use_reentrant"</span>: <span class="va">False</span>})</span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_qlora_model, <span class="st">"1B"</span>), inference<span class="op">=</span><span class="va">True</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"qlora-inference.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL]: 0.859 GB
+Memory allocated [FWD]: 1.034 GB
+Elapsed time: 19.783
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL]: 0.868 GB
+Memory allocated [FWD]: 1.201 GB
+Elapsed time: 17.461
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL]: 0.868 GB
+Memory allocated [FWD]: 1.532 GB
+Elapsed time: 17.779
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL]: 0.868 GB
+Memory allocated [FWD]: 1.878 GB
+Elapsed time: 17.819
+
+
+Memory allocated [finish]: 0.009 GB</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_qlora_model, <span class="st">"1B"</span>), inference<span class="op">=</span><span class="va">False</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"qlora-training.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL): 0.868 GB
+Memory allocated [FWD]: 2.195 GB
+Memory allocated [BWD]: 1.295 GB
+Elapsed time: 17.303
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 3.532 GB
+Memory allocated [BWD]: 1.712 GB
+Elapsed time: 17.051
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 6.185 GB
+Memory allocated [BWD]: 2.542 GB
+Elapsed time: 17.963
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 8.853 GB
+Memory allocated [BWD]: 3.387 GB
+Elapsed time: 18.167
+
+
+Memory allocated [finish]: 0.017 GB</code></pre>
+</div>
+</div>
+</section>
+<section id="qlora-gradient-ckpt." class="level3">
+<h3 class="anchored" data-anchor-id="qlora-gradient-ckpt.">QLORA + Gradient Ckpt.</h3>
+<p>Using default HF grad ckpt strategy which wraps each individual decoder layer.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>profile_model(partial(create_qlora_model, <span class="st">"1B"</span>, gc_enabled<span class="op">=</span><span class="va">True</span>), inference<span class="op">=</span><span class="va">False</span>, save_filename<span class="op">=</span>save_dir<span class="op">/</span><span class="st">"qlora-gc-training.pickle"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Input Size:(1, 512)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 1.250 GB
+Memory allocated [BWD]: 1.194 GB
+Elapsed time: 17.265
+
+
+Input Size:(1, 1024)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 1.625 GB
+Memory allocated [BWD]: 1.511 GB
+Elapsed time: 16.252
+
+
+Input Size:(1, 2048)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 2.371 GB
+Memory allocated [BWD]: 2.140 GB
+Elapsed time: 17.468
+
+
+Input Size:(1, 3072)
+Memory allocated [MODEL): 0.876 GB
+Memory allocated [FWD]: 3.133 GB
+Memory allocated [BWD]: 2.783 GB
+Elapsed time: 18.704
+
+
+Memory allocated [finish]: 0.017 GB</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`...</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> x <span class="kw">in</span> inputs:</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    set_seed(<span class="dv">42</span>)</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> create_qlora_model(<span class="st">"1B"</span>, gc_enabled<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    model.to(<span class="st">"cuda"</span>, torch.bfloat16)<span class="op">;</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>        model(inputs[<span class="dv">0</span>].to(<span class="st">"cuda"</span>))</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    start <span class="op">=</span> torch.cuda.Event(enable_timing<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>    end <span class="op">=</span> torch.cuda.Event(enable_timing<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>    start.record()</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>    torch.cuda.reset_peak_memory_stats()</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Memory allocated [MODEL): </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> model(x.to(<span class="st">"cuda"</span>))</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Memory allocated [FWD]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)            </span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>    output.logits.mean().backward()</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Memory allocated [BWD]: </span><span class="sc">{</span>malloc_in_gb()<span class="sc">:.3f}</span><span class="ss"> GB"</span>)</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>    max_memory <span class="op">=</span> torch.cuda.memory.max_memory_allocated()<span class="op">/</span><span class="fl">1e9</span></span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Max MemAlloc: </span><span class="sc">{</span>max_memory<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>    end.record()</span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>    torch.cuda.synchronize()</span>
+<span id="cb35-23"><a href="#cb35-23" aria-hidden="true" tabindex="-1"></a>    secs <span class="op">=</span> start.elapsed_time(end) <span class="op">/</span> <span class="dv">1000</span></span>
+<span id="cb35-24"><a href="#cb35-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Elapsed time: </span><span class="sc">{</span>secs<span class="sc">:.3f}</span><span class="ch">\n\n</span><span class="ss">"</span>)</span>
+<span id="cb35-25"><a href="#cb35-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-26"><a href="#cb35-26" aria-hidden="true" tabindex="-1"></a>    output, model <span class="op">=</span> <span class="va">None</span>, <span class="va">None</span></span>
+<span id="cb35-27"><a href="#cb35-27" aria-hidden="true" tabindex="-1"></a>    free_memory()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Memory allocated [MODEL): 0.882 GB
+Memory allocated [FWD]: 1.260 GB
+Memory allocated [BWD]: 1.210 GB
+Max MemAlloc: 1.360229376
+Elapsed time: 0.195
+
+
+Memory allocated [MODEL): 0.891 GB
+Memory allocated [FWD]: 1.646 GB
+Memory allocated [BWD]: 1.532 GB
+Max MemAlloc: 1.844102144
+Elapsed time: 0.194
+
+
+Memory allocated [MODEL): 0.891 GB
+Memory allocated [FWD]: 2.397 GB
+Memory allocated [BWD]: 2.174 GB
+Max MemAlloc: 2.791502848
+Elapsed time: 0.231
+
+
+Memory allocated [MODEL): 0.891 GB
+Memory allocated [FWD]: 3.142 GB
+Memory allocated [BWD]: 2.784 GB
+Max MemAlloc: 3.733136384
+Elapsed time: 0.417
+
+</code></pre>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  const viewSource = window.document.getElementById('quarto-view-source') ||
+                     window.document.getElementById('quarto-code-tools-source');
+  if (viewSource) {
+    const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+    viewSource.addEventListener("click", function(e) {
+      if (sourceUrl) {
+        // rstudio viewer pane
+        if (/\bcapabilities=\b/.test(window.location)) {
+          window.open(sourceUrl);
+        } else {
+          window.location.href = sourceUrl;
+        }
+      } else {
+        const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+        modal.show();
+      }
+      return false;
+    });
+  }
+  function toggleCodeHandler(show) {
+    return function(e) {
+      const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+      for (let i=0; i<detailsSrc.length; i++) {
+        const details = detailsSrc[i].parentElement;
+        if (show) {
+          details.open = true;
+        } else {
+          details.removeAttribute("open");
+        }
+      }
+      const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+      const fromCls = show ? "hidden" : "unhidden";
+      const toCls = show ? "unhidden" : "hidden";
+      for (let i=0; i<cellCodeDivs.length; i++) {
+        const codeDiv = cellCodeDivs[i];
+        if (codeDiv.classList.contains(fromCls)) {
+          codeDiv.classList.remove(fromCls);
+          codeDiv.classList.add(toCls);
+        } 
+      }
+      return false;
+    }
+  }
+  const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+  if (hideAllCode) {
+    hideAllCode.addEventListener("click", toggleCodeHandler(false));
+  }
+  const showAllCode = window.document.getElementById("quarto-show-all-code");
+  if (showAllCode) {
+    showAllCode.addEventListener("click", toggleCodeHandler(true));
+  }
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

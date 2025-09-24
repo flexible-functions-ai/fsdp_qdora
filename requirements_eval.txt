@@ -1,0 +1,14 @@
+# Requirements for model evaluation
+torch>=2.1.0
+transformers>=4.36.0
+accelerate>=0.25.0
+bitsandbytes>=0.43.0
+peft>=0.7.0
+datasets>=2.15.0
+pandas>=1.5.0
+numpy>=1.24.0
+tqdm>=4.64.0
+safetensors>=0.4.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+scipy>=1.9.0

@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Efficient Finetuning of Llama 3 70B with FSDP QDora – benchmarks_03_2024</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="../styles.css">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark ">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">FSDP QDora Tutorial</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html" rel="" target="">
+ <span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../fsdp_qdora_ucg_v1.html" rel="" target="">
+ <span class="menu-text">FSDP QDora Tutorial</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../sd_ulmfit.html" rel="" target="">
+ <span class="menu-text">Text Transfer Learning with ULMFit - Medical LLM V1</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/rubanzasilva" rel="" target=""><i class="bi bi-github" role="img">
+</i> 
+ <span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://flexiblefunctions.com" rel="" target="">
+ <span class="menu-text">Flexible Functions</span></a>
+  </li>  
+</ul>
+            <div class="quarto-navbar-tools">
+</div>
+          </div> <!-- /navcollapse -->
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#benchmarking-qlorafsdp" id="toc-benchmarking-qlorafsdp" class="nav-link active" data-scroll-target="#benchmarking-qlorafsdp">Benchmarking QLoRA+FSDP</a>
+  <ul class="collapse">
+  <li><a href="#exploring-training-performance-across-different-hardware-configurations" id="toc-exploring-training-performance-across-different-hardware-configurations" class="nav-link" data-scroll-target="#exploring-training-performance-across-different-hardware-configurations">Exploring training performance across different hardware configurations</a></li>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link" data-scroll-target="#introduction">Introduction</a></li>
+  <li><a href="#case-study-a-dual-3090-basement-rig" id="toc-case-study-a-dual-3090-basement-rig" class="nav-link" data-scroll-target="#case-study-a-dual-3090-basement-rig">Case Study: A Dual 3090 ‘Basement Rig’</a>
+  <ul class="collapse">
+  <li><a href="#starting-at-7b" id="toc-starting-at-7b" class="nav-link" data-scroll-target="#starting-at-7b">Starting at 7B</a></li>
+  <li><a href="#what-about-cpu-offloading" id="toc-what-about-cpu-offloading" class="nav-link" data-scroll-target="#what-about-cpu-offloading">What About CPU Offloading?</a></li>
+  <li><a href="#llama-70b" id="toc-llama-70b" class="nav-link" data-scroll-target="#llama-70b">Llama 70B</a></li>
+  </ul></li>
+  <li><a href="#case-study-a-dual-4090-budget-workstation" id="toc-case-study-a-dual-4090-budget-workstation" class="nav-link" data-scroll-target="#case-study-a-dual-4090-budget-workstation">Case Study: A Dual 4090 “Budget Workstation”</a>
+  <ul class="collapse">
+  <li><a href="#llama-2-7b" id="toc-llama-2-7b" class="nav-link" data-scroll-target="#llama-2-7b">Llama-2 7B</a></li>
+  <li><a href="#yi-34b" id="toc-yi-34b" class="nav-link" data-scroll-target="#yi-34b">Yi 34B</a></li>
+  <li><a href="#llama-2-70b" id="toc-llama-2-70b" class="nav-link" data-scroll-target="#llama-2-70b">Llama-2 70B</a></li>
+  <li><a href="#bonus-mistral-7b" id="toc-bonus-mistral-7b" class="nav-link" data-scroll-target="#bonus-mistral-7b">Bonus: Mistral 7B</a></li>
+  </ul></li>
+  <li><a href="#case-study-conclusions" id="toc-case-study-conclusions" class="nav-link" data-scroll-target="#case-study-conclusions">Case Study: Conclusions</a></li>
+  <li><a href="#recommendations-for-different-hardware-configurations" id="toc-recommendations-for-different-hardware-configurations" class="nav-link" data-scroll-target="#recommendations-for-different-hardware-configurations">Recommendations for Different Hardware Configurations</a></li>
+  <li><a href="#practical-guide-for-optimal-training-speed" id="toc-practical-guide-for-optimal-training-speed" class="nav-link" data-scroll-target="#practical-guide-for-optimal-training-speed">Practical Guide for Optimal Training Speed</a></li>
+  <li><a href="#final-thoughts" id="toc-final-thoughts" class="nav-link" data-scroll-target="#final-thoughts">Final Thoughts</a></li>
+  <li><a href="#authors" id="toc-authors" class="nav-link" data-scroll-target="#authors">Authors</a></li>
+  <li><a href="#additional-references" id="toc-additional-references" class="nav-link" data-scroll-target="#additional-references">Additional References:</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><div class="quarto-title-block"><div class="quarto-title-tools-only"><h1></h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+
+
+
+<section id="benchmarking-qlorafsdp" class="level1">
+<h1>Benchmarking QLoRA+FSDP</h1>
+<section id="exploring-training-performance-across-different-hardware-configurations" class="level2">
+<h2 class="anchored" data-anchor-id="exploring-training-performance-across-different-hardware-configurations">Exploring training performance across different hardware configurations</h2>
+<p>NB: These benchmarks were done in February and March 2024. The exact performance numbers will quickly go out of date but the general lessons may still be of interest.</p>
+</section>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>We recently announced our first public project, combining <a href="https://www.answer.ai/posts/2024-03-06-fsdp-qlora.html">FSDP and QLoRA</a> to enable training of 70B models on consumer GPUs. Our first <a href="https://www.answer.ai/posts/2024-03-14-fsdp-qlora-deep-dive.html">follow-on post</a> went deep into the technical details involved in getting it working. In this note we’ll examine the performance of this new approach to evaluate when it will make the most difference and how you can get the most out of your hardware.</p>
+</section>
+<section id="case-study-a-dual-3090-basement-rig" class="level2">
+<h2 class="anchored" data-anchor-id="case-study-a-dual-3090-basement-rig">Case Study: A Dual 3090 ‘Basement Rig’</h2>
+<p>Rather than starting with a table of results, let’s look at some illustrative examples on a single setup to get a feel for how different choices might affect the memory usage and speed of training a model. Everything in this section is benchmarked on Johno’s personal machine, which features two 3090s (without NVLink), 128GB CPU RAM and an older motherboard. The 3090s are power limited to 280W each.</p>
+<section id="starting-at-7b" class="level3">
+<h3 class="anchored" data-anchor-id="starting-at-7b">Starting at 7B</h3>
+<p>We’ll use the following command as a template, training on dummy data (so we can control the context length) and logging some stats to Weights and Biases for later comparisons:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> train.py <span class="at">--model_name</span> meta-llama/Llama-2-7b-hf <span class="at">--batch_size</span> 1 <span class="at">--context_length</span> 512 <span class="at">--train_type</span> qlora <span class="at">--use_gradient_checkpointing</span> True <span class="at">--reentrant_checkpointing</span> True <span class="at">--use_cpu_offload</span> False <span class="at">--log_to</span> wandb <span class="at">--dataset</span> dummy <span class="at">--dataset_samples</span> 1024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We’re starting out with QLoRA, and by default the script uses FSDP (that is the headline feature after all) to split the model across both GPUs. So, doing some quick napkin math, with a 7 billion parameter model we’d expect 7 billion parameters x 4 bits/parameter / 2 GPUs = ~1.75GB of weights per GPU.</p>
+<p>It’s actually about 3.72GiB (see <code>reserved_after_model_wrap</code>). There aren’t exactly 7 billion parameters, we keep some in full precision, there are the LoRA adapter weights, memory reservation overhead… and then once we begin training there are gradients and activations to keep track of too, intermediate values that need to be stored during certain computations, optimizer state for all of the trainable (LoRA) parameters… In total, the command above shows a peak memory usage of 4.98GiB during training.</p>
+<p>Next let’s increase the context length from 512 tokens to 2048 (<code>--context_length 2048</code>). There are internal activations for each token in the sequence, so more tokens → more GPU memory used. In this case, the peak memory per GPU goes from 4.98GiB to 5.21GiB. Training also takes longer: 800 seconds vs 550.</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">Context Length</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">512</td>
+<td style="text-align: center;">4.98</td>
+<td style="text-align: center;">1,082</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">2048</td>
+<td style="text-align: center;">5.21</td>
+<td style="text-align: center;">1,564</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 7B with a batch size of one</em></p>
+<p>What if we weren’t using QLoRA? Keeping the weights in 16-bit precision and doing regular LoRA means we can skip the time spent dequantizing the base weights BUT we need more memory to store the weights (~7GB per GPU) and copying parameters from one GPU to another will be slower (since there is more data to transfer). On my system, the data transfer speed outweighs the gain from avoiding quantization, and the LoRA equivalents run slower than their QLoRA counterparts in this case:</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">Context Length</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">512</td>
+<td style="text-align: center;">10.24</td>
+<td style="text-align: center;">2,597</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">2048</td>
+<td style="text-align: center;">10.22</td>
+<td style="text-align: center;">3,090</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 7B with a batch size of one</em></p>
+<p>NB: While the reported peak reserved memory for both 512 and 2048 context length is roughly the same, the peak allocated memory is 8.28 GiB vs 9.16 GiB, respectively. Which matches our intuition that a smaller context length should use less memory.</p>
+<p>None of these runs are close to using the 24GB of VRAM I have available, so let’s scale up the batch size to fill that up a little more:</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">11.22</td>
+<td style="text-align: center;">998</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">10</td>
+<td style="text-align: center;">20.97</td>
+<td style="text-align: center;">936</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">16.14</td>
+<td style="text-align: center;">1,366</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">6</td>
+<td style="text-align: center;">21.35</td>
+<td style="text-align: center;">1,199</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 7B with Context Length of 2048</em></p>
+<p>Using a larger batch size results in faster training overall. You still have to do the same amount of computation per sample, but running them through in batches lets you save time by transferring the weights back and forth fewer times in total. Notice also that by using less memory for model weights QLoRA enables a larger max batch size, giving it an extra speed advantage over the standard LoRA version.</p>
+<p>Now, we mentioned transferring the weights between GPUs was slow on my machine, with an older motherboard and slow PCI lanes. Given that, we might reasonably ask if FSDP is even required in this case since we could fit the full model (quantized OR unquantized) in the VRAM of a single GPU. This is a valid point, and we can test it out by specifying <code>“ddp”</code> as the sharding strategy<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>, which keeps a full copy of the weights on each GPU:</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">DDP</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">20.94</td>
+<td style="text-align: center;">875</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">22.04</td>
+<td style="text-align: center;">881</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 7B with Context Length of 2048</em></p>
+<p>In the QLoRA case, we now have the full (quantized) weights on each GPU, using more VRAM than with FSDP. Because we don’t have to transfer the weights between GPUs, only gradients, training finishes a little faster than the FSDP case. Even though we use a batch size of 8 vs 10. For LoRA, each GPU has 14GB* of weights and thus much less room for everything else, necessitating a lower batch size of 4 but still finishing much faster than the FSDP version.</p>
+<p>We have our first lesson. If the model is small enough that the weights aren’t dominating your VRAM usage, you may be better off with DDP instead of FSDP. As we move to larger models, the larger batch sizes enabled by sharding the model across multiple GPUs will outweigh the communication overhead.</p>
+</section>
+<section id="what-about-cpu-offloading" class="level3">
+<h3 class="anchored" data-anchor-id="what-about-cpu-offloading">What About CPU Offloading?</h3>
+<p>Now let’s jump up to a larger model: Yi 34B. Napkin math suggests with QLoRA+FSDP we should expect ~17GB of weights per GPU, leaving enough room on my 24GB cards for a batch size of 1 or 2 at most. But there’s another option: CPU offloading (<code>--use_cpu_offload true</code>) stores the weights in CPU RAM instead, loading them into each GPU a layer at a time as needed. This leaves the GPU RAM free for activations, gradients etc and allows us to use a batch size of 4 instead. In this example, the extra communication overhead of CPU offloading is offset by the higher batch size it enables and we end up with a slightly faster training run overall:</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">CPU Offload</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">23.05</td>
+<td style="text-align: center;">5,041</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">22.98</td>
+<td style="text-align: center;">4,830</td>
+</tr>
+</tbody>
+</table>
+<p><em>Yi 34B with Context Length of 2048</em></p>
+<p>In cases where you have faster interconnect between cards (NVLink, for example) the non-offloading case may win out, but it’s interesting how comparable these are - my assumption was that having the weights on the CPU and copying them over would be <em>far</em> slower. On a cloud machine with slower RAM and a wimpy CPU we did see dramatic slowdowns where CPU offloading was many times slower, so YMMV. But the fact that it works reasonably fast on my machine is encouraging, since it does spark the inevitable question: “<strong>can we go bigger?</strong>”</p>
+</section>
+<section id="llama-70b" class="level3">
+<h3 class="anchored" data-anchor-id="llama-70b">Llama 70B</h3>
+<p>When I first tried loading and training a 70B model the script crashed and my hopes fell. Then I spotted an issue: my 128GB of CPU RAM was completely filling up right at the start of training. I created a 10GB swapfile, which is a part of the disk that is treated like RAM when the regular system RAM gets filled. This allowed the system to get over the initial spike and start training:</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">CPU Offload</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">14.92</td>
+<td style="text-align: center;">11,795</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 70B with Context Length of 2048</em></p>
+<p>It’s slower than the smaller models (nearly 10x slower than the 7B model, at nearly 50 seconds per batch) but that’s not bad considering that 70 BILLION parameters are copied to the GPUs each step! And with activation offloading (<code>--use_activation_cpu_offload True</code>) the total allocated memory is low enough that training on a 16GB GPU could be possible in theory.</p>
+</section>
+</section>
+<section id="case-study-a-dual-4090-budget-workstation" class="level2">
+<h2 class="anchored" data-anchor-id="case-study-a-dual-4090-budget-workstation">Case Study: A Dual 4090 “Budget Workstation”</h2>
+<p>We ran a subset of the tests on a dual 4090 “budget workstation” with 128GB of CPU RAM<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>. Like the 3090 case study, the 4090s don’t have NVLink. But both GPUs have full PCIe v4 x16 lanes which should reduce the FSDP transfer overhead. The 4090s peaked at 400 watts per card<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>.</p>
+<section id="llama-2-7b" class="level3">
+<h3 class="anchored" data-anchor-id="llama-2-7b">Llama-2 7B</h3>
+<p>At the 7 billion parameter scale, the maximum performance difference between LoRA and FSDP methods is ~10 percent.</p>
+<table class="table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 18%">
+<col style="width: 8%">
+<col style="width: 16%">
+<col style="width: 27%">
+<col style="width: 13%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">CPU Offload</th>
+<th style="text-align: center;">DDP</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">22.04</td>
+<td style="text-align: center;">437</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">6</td>
+<td style="text-align: center;">21.35</td>
+<td style="text-align: center;">481</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">LoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">10</td>
+<td style="text-align: center;">22.69</td>
+<td style="text-align: center;">482</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">20.94</td>
+<td style="text-align: center;">450</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">10</td>
+<td style="text-align: center;">20.97</td>
+<td style="text-align: center;">466</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">12</td>
+<td style="text-align: center;">22.38</td>
+<td style="text-align: center;">464</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 7B with Context Length of 2048</em></p>
+<p>This is encouraging, as there is only a small performance hit when trading maximum training speed verses maximum tokens. It also suggests that the slowdown due to using PCIe instead of NVLink is manageable when training large enough models.</p>
+</section>
+<section id="yi-34b" class="level3">
+<h3 class="anchored" data-anchor-id="yi-34b">Yi 34B</h3>
+<p>With a full PCIe lanes and FSDP’s overlapping of compute and next layer transfers, there is almost no difference between QLoRA and QLoRA with CPU Offloading. The larger batch size is ~0.5 percent faster.</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">CPU Offload</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">23.05</td>
+<td style="text-align: center;">2,072</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">22.98</td>
+<td style="text-align: center;">2,061</td>
+</tr>
+</tbody>
+</table>
+<p><em>Yi 34B with Context Length of 2048</em></p>
+</section>
+<section id="llama-2-70b" class="level3">
+<h3 class="anchored" data-anchor-id="llama-2-70b">Llama-2 70B</h3>
+<p>Increasing from a 34B model to a 70B model shows near linear scaling, with a ~6 percent slowdown per sample.</p>
+<table class="table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">CPU Offload</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">14.92</td>
+<td style="text-align: center;">4,399</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 70B with Context Length of 2048</em></p>
+</section>
+<section id="bonus-mistral-7b" class="level3">
+<h3 class="anchored" data-anchor-id="bonus-mistral-7b">Bonus: Mistral 7B</h3>
+<p>Mistral 7B v0.2 Base expanded the context window of the base 7B parameter model to 32K tokens. 24GB of memory per GPU isn’t quite enough to finetune at the full context length even using QLoRA, but we can manage a respectable 24K tokens.</p>
+<table class="table">
+<colgroup>
+<col style="width: 14%">
+<col style="width: 15%">
+<col style="width: 14%">
+<col style="width: 20%">
+<col style="width: 24%">
+<col style="width: 11%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Train Type</th>
+<th style="text-align: center;">CPU Offload</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Context Length</th>
+<th style="text-align: center;">Peak Memory (GiB)</th>
+<th style="text-align: center;">Time (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">12</td>
+<td style="text-align: center;">2,048</td>
+<td style="text-align: center;">22.54</td>
+<td style="text-align: center;">483</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">QLoRA</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">24,576</td>
+<td style="text-align: center;">22.54</td>
+<td style="text-align: center;">7,809</td>
+</tr>
+</tbody>
+</table>
+<p><em>Mistral 7B v0.2 Base</em></p>
+<p>While the tokens per batch is the same at 24,576, increasing the context length from 2,048 to 24,576 reduces the training speed from 2,200 tokens/second to 1,615 tokens/second.</p>
+</section>
+</section>
+<section id="case-study-conclusions" class="level2">
+<h2 class="anchored" data-anchor-id="case-study-conclusions">Case Study: Conclusions</h2>
+<p>A priori, we expected the dual 4090s to be significantly faster than our dual 3090 test case, in part due to the increased generational performance but mostly due to the faster data transfer speed from full x16 PCIe lanes.</p>
+<p>Our results confirmed this expectation, highlighting the importance of good multi-GPU interconnect. If you have two 3090s and a non-workstation motherboard, you’ll want NVLink. If you have two 4090s, you’ll want a workstation motherboard that can provide full x16 PCIe lanes to both GPUs.</p>
+<p>These results are exciting if you already own a dual-GPU system, but now let’s take a step back and consider whether this still makes sense given the other hardware configurations available in the cloud.</p>
+</section>
+<section id="recommendations-for-different-hardware-configurations" class="level2">
+<h2 class="anchored" data-anchor-id="recommendations-for-different-hardware-configurations">Recommendations for Different Hardware Configurations</h2>
+<p>Let’s consider a number of different hardware configurations and see which gives the best bang-per-buck performance for fine-tuning a 70B model. For each setup we’ve tried to find the fastest possible combination of settings capable of training on context length 2048 with an effective batch size of 32 (or the closest we could get).</p>
+<table class="table">
+<colgroup>
+<col style="width: 19%">
+<col style="width: 5%">
+<col style="width: 30%">
+<col style="width: 14%">
+<col style="width: 11%">
+<col style="width: 18%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Accelerator</th>
+<th style="text-align: center;">GPUs</th>
+<th style="text-align: center;">CPU+Activation Offload</th>
+<th style="text-align: center;">Batch Size</th>
+<th style="text-align: center;">Time (s)</th>
+<th>Ballpark Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">A5000 24GB</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">True</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">9,688</td>
+<td>$2.37 - $4.14</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">A5000 24GB</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">4,829</td>
+<td>$2.36 - $4.13</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">A5000 24GB</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">2,613</td>
+<td>$2.55 - $4.47</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">A6000 Ada 48GB</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">5,867</td>
+<td>$3.72 - $5.22</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">A6000 Ada 48GB</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">3</td>
+<td style="text-align: center;">2,904</td>
+<td>$3.68 - $5.16</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">A100 40GB SMX</td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">3,277</td>
+<td>$3.28 - $3.75</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">A100 40GB SMX</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">1,266</td>
+<td>$2.53 - $2.90</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">A100 40GB SMX</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">672</td>
+<td>$2.69 - $3.08</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">H100 80GB SXM</td>
+<td style="text-align: center;">4</td>
+<td style="text-align: center;">False</td>
+<td style="text-align: center;">8</td>
+<td style="text-align: center;">667</td>
+<td>$3.48 - $3.53</td>
+</tr>
+</tbody>
+</table>
+<p><em>Llama-2 70B QLoRA with Context Length of 2048 on Select Accelerators</em></p>
+<p>NB: Ballpark Cost is an estimated range of training 1,024 samples at a context length of 2,048. Prices from <a href="https://cloud-gpus.com/">Cloud GPUs</a> are used. Exact numbers will vary by provider and depend on availability.</p>
+<p>On a machine with four or eight A5000s, CPU offloading was slower despite allowing us to use double the batch size. This is a different outcome to the 2x3090 example on a 34B model, where CPU offloading had a slight edge. The difference likely comes down to the different transfer speeds CPU-&gt;GPU and GPU-&gt;GPU: copying parameters between GPUs with fast interconnect is faster than transferring them from the CPU RAM to all the GPUs on these machines.</p>
+<p>It’s interesting to compare the time here of 16 minutes on eight A5000s with the dual 3090 example from earlier. The training is ~4.6X faster, but the machine is ~6X more expensive per hour<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a>. And of course if you already own the 3090s then the longer wait might look like an even better deal.</p>
+<p>This trend holds for the rest of the examples too. Using a higher number of more powerful GPUs speeds things up as you’d expect, but also costs more, such that the total training cost ends up in the same range across the different setups we tested.</p>
+<p>One final interesting thing we noticed when testing: for the lower-end configurations QLoRA + FSDP was either the fastest option or in some cases the only option, and training speed was bandwidth-bound. Once we moved to the H100 system with fast interconnect and 80GB memory per card, we finally hit the point where compute was the limiting factor. Changing the batch size from 8 to 12 made little difference, as did switching from QLoRA to LoRA - the extra time spent transferring data didn’t matter since it was happening while the computation was being done, with the latter being the bottlekneck.</p>
+</section>
+<section id="practical-guide-for-optimal-training-speed" class="level2">
+<h2 class="anchored" data-anchor-id="practical-guide-for-optimal-training-speed">Practical Guide for Optimal Training Speed</h2>
+<p>Here is a practical step-by-step guide to find the optimal FSDP training configuration which we also followed during the experiments above. We use QLoRA which already saves a significant amount of memory by reducing the model size via quantization, and a lot more by limiting the trainable parameters (~1-2%) with LoRA. We also use backward prefetching (<a href="https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.BackwardPrefetch">BACKWARD_PRE</a>) by default to overlap computation and communication as much as possible, which also comes with an increased memory usage. You can also experiment with other prefetch options: BACKWARD_POST or None to tradeoff memory and speed.</p>
+<p>It is recommended to have at least two GPUs for this guide to make sense as it leverages FSDP sharding strategies.</p>
+<p>Follow the steps below to find the optimal configuration for your own problem and hardware:</p>
+<ol type="1">
+<li><strong>Vanilla Start</strong>:
+<ul>
+<li>We start with a batch size of 1, sequence length of 2048 (problem dependent) and disable all the memory saving options.</li>
+<li>This configuration requires the most memory but potentially the fastest/cheapest one.</li>
+<li>This will use DDP (Distributed Data Parallel).</li>
+</ul></li>
+<li><strong>Try <a href="https://pytorch.org/docs/stable/checkpoint.html#torch-utils-checkpoint">gradient checkpointing</a></strong>:
+<ul>
+<li>Next, we can try gradient checkpointing to save memory.</li>
+<li>Gradient checkpointing is a technique that allows the model to avoid storing intermediate activations during the backward pass by recomputing them.</li>
+</ul></li>
+<li><strong>Try <a href="https://pytorch.org/docs/stable/checkpoint.html#torch-utils-checkpoint">SHARD_GRAD_OP</a></strong>:
+<ul>
+<li>If DDP with gradient checkpointing didn’t work we can try SHARD_GRAD_OP<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a> next.</li>
+<li>Shard-grad-op is a technique that allows the model to split the gradients and optimizer states across multiple GPUs.</li>
+<li>This can reduce memory usage on each GPU, but it can also increase communication overhead and training time.</li>
+<li>You can first try without gradient checkpointing and see if it trains without OOM. If not you can set it to true as well.</li>
+</ul></li>
+<li><strong>Try <a href="https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.ShardingStrategy">FULL_SHARD</a></strong>:
+<ul>
+<li>If SHARD_GRAD_OP with gradient checkpointing didn’t work we can try FULL_SHARD<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a> next.</li>
+<li>Full-sharding is a technique that allows the model to split the model parameters, gradients and optimizer states across multiple GPUs.</li>
+<li>This can significantly reduce memory usage on each GPU, but it can also increase communication overhead and training time.</li>
+<li>Similarly, you can first try without gradient checkpointing and see if it trains without OOM. If not you can set it to true as well.</li>
+</ul></li>
+<li><strong>Try CPU Offloading</strong>:
+<ul>
+<li>If FULL_SHARD with gradient checkpointing didn’t work we can try cpu offloading next.</li>
+<li>FSDP’s CPU Offloading moves model parameters and gradients to the CPU when they are not involved in computation.</li>
+<li>This can reduce memory usage on the GPU, but it can also increase training time due to transfers between GPU and CPU.</li>
+<li>At this point you’ve so far tried both full sharding and gradient checkpointing but still faced OOM issues.</li>
+</ul></li>
+<li><strong>Try <a href="https://github.com/pytorch/pytorch/blob/2e02e1efad957b86dbcc5b64748e03acfb8d330c/torch/distributed/algorithms/_checkpoint/checkpoint_wrapper.py#L173">Activation offloading</a></strong>:
+<ul>
+<li>Activation offloading is a technique that allows the model to move some activations from the GPU to the CPU, and transfer them back to the GPU when needed.</li>
+<li>This will reduce memory usage on the GPU, increase memory usage on the CPU and have additional transfers between CPU and GPU.</li>
+</ul></li>
+</ol>
+<p>If you are still facing out-of-memory errors after trying all the steps above then you might need to reduce the sequence length if your task allows, find more GPUs or find GPUs with more memory, and repeat the steps again.</p>
+<p>Once a setup that can train with a batch size of 1 is found, it is recommended to increase the batch size leaving some GPU memory free to avoid memory thrashing. This can help with training speed and avoid out-of-memory errors.</p>
+<p>After finding the optimal configuration you can give the next step command a try with a higher batch size and see if it increases the throughput and reduces the training time. For example, imagine you are able to train using DDP (step 1). You can also try with gradient checkpointing (step 2) with a larger batch size. There is a chance that this might increase the overall throughput compared to not using gradient checkpointing and result in a faster training.</p>
+</section>
+<section id="final-thoughts" class="level2">
+<h2 class="anchored" data-anchor-id="final-thoughts">Final Thoughts</h2>
+<p>Benchmarking is always complicated: hardware varies between providers, different versions of different libraries introduce hidden optimizations or bottlenecks, and subtle differences can cause dramatic speedups.</p>
+<p>In this post we’ve tried to give recommendations for common use-cases which we hope will be useful in informing further experimentation, especially as FSDP+QLoRA support is added to more frameworks and the community explores this frontier further. We’ve also shown just how many more options there are for fine-tuning these large models now that we have these techniques at our disposal.</p>
+</section>
+<section id="authors" class="level2">
+<h2 class="anchored" data-anchor-id="authors">Authors</h2>
+<p>Jonathan Whitaker Benjamin Warner Kerem Turgutlu</p>
+</section>
+<section id="additional-references" class="level2">
+<h2 class="anchored" data-anchor-id="additional-references">Additional References:</h2>
+<ul>
+<li><a href="https://pytorch.org/docs/stable/fsdp.html">https://pytorch.org/docs/stable/fsdp.html</a></li>
+<li><a href="https://medium.com/pytorch/training-a-1-trillion-parameter-model-with-pytorch-fully-sharded-data-parallel-on-aws-3ac13aa96cff">https://medium.com/pytorch/training-a-1-trillion-parameter-model-with-pytorch-fully-sharded-data-parallel-on-aws-3ac13aa96cff</a></li>
+</ul>
+
+
+<!-- -->
+
+</section>
+</section>
+
+
+<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>This is still using FSDP, but in distributed data parallel mode. Not DistributedDataParallel.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>The total workstation cost is less than a single A6000 Ada. Hence a budget workstation.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3"><p>Power usage peaked at 400 watts for the 7B and 34B models, and 375 watts for the 70B model.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn4"><p>4X-10X depending on where you find your 3090s.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn5"><p>If using multi-node training you can use _HYBRID_SHARD_ZERO2 (–sharding_strategy hybrid_shard_grad_op) to apply SHARD_GRAD_OP strategy within a node and replicate it across nodes.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6"><p>If using multi-node training you can use HYBRID_SHARD (–sharding_strategy hybrid_full_shard) to apply FULL_SHARD strategy within a node and replicate it across nodes.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section></div></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  const viewSource = window.document.getElementById('quarto-view-source') ||
+                     window.document.getElementById('quarto-code-tools-source');
+  if (viewSource) {
+    const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+    viewSource.addEventListener("click", function(e) {
+      if (sourceUrl) {
+        // rstudio viewer pane
+        if (/\bcapabilities=\b/.test(window.location)) {
+          window.open(sourceUrl);
+        } else {
+          window.location.href = sourceUrl;
+        }
+      } else {
+        const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+        modal.show();
+      }
+      return false;
+    });
+  }
+  function toggleCodeHandler(show) {
+    return function(e) {
+      const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+      for (let i=0; i<detailsSrc.length; i++) {
+        const details = detailsSrc[i].parentElement;
+        if (show) {
+          details.open = true;
+        } else {
+          details.removeAttribute("open");
+        }
+      }
+      const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+      const fromCls = show ? "hidden" : "unhidden";
+      const toCls = show ? "unhidden" : "hidden";
+      for (let i=0; i<cellCodeDivs.length; i++) {
+        const codeDiv = cellCodeDivs[i];
+        if (codeDiv.classList.contains(fromCls)) {
+          codeDiv.classList.remove(fromCls);
+          codeDiv.classList.add(toCls);
+        } 
+      }
+      return false;
+    }
+  }
+  const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+  if (hideAllCode) {
+    hideAllCode.addEventListener("click", toggleCodeHandler(false));
+  }
+  const showAllCode = window.document.getElementById("quarto-show-all-code");
+  if (showAllCode) {
+    showAllCode.addEventListener("click", toggleCodeHandler(true));
+  }
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="sourceCode" id="cb2" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Benchmarking QLoRA+FSDP</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exploring training performance across different hardware configurations</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>NB: These benchmarks were done in February and March 2024. The exact performance numbers will quickly go out of date but the general lessons may still be of interest. </span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">## Introduction</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>We recently announced our first public project, combining <span class="co">[</span><span class="ot">FSDP and QLoRA</span><span class="co">](https://www.answer.ai/posts/2024-03-06-fsdp-qlora.html)</span> to enable training of 70B models on consumer GPUs. Our first <span class="co">[</span><span class="ot">follow-on post</span><span class="co">](https://www.answer.ai/posts/2024-03-14-fsdp-qlora-deep-dive.html)</span> went deep into the technical details involved in getting it working. In this note we’ll examine the performance of this new approach to evaluate when it will make the most difference and how you can get the most out of your hardware.</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="fu">## Case Study: A Dual 3090 ‘Basement Rig’</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>Rather than starting with a table of results, let’s look at some illustrative examples on a single setup to get a feel for how different choices might affect the memory usage and speed of training a model. Everything in this section is benchmarked on Johno’s personal machine, which features two 3090s (without NVLink), 128GB CPU RAM and an older motherboard. The 3090s are power limited to 280W each.</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="fu">### Starting at 7B</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>We’ll use the following command as a template, training on dummy data (so we can control the context length) and logging some stats to Weights and Biases for later comparisons:</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="in">```{.bash .code-overflow-wrap}</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> train.py <span class="at">--model_name</span> meta-llama/Llama-2-7b-hf <span class="at">--batch_size</span> 1 <span class="at">--context_length</span> 512 <span class="at">--train_type</span> qlora <span class="at">--use_gradient_checkpointing</span> True <span class="at">--reentrant_checkpointing</span> True <span class="at">--use_cpu_offload</span> False <span class="at">--log_to</span> wandb <span class="at">--dataset</span> dummy <span class="at">--dataset_samples</span> 1024</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>We’re starting out with QLoRA, and by default the script uses FSDP (that is the headline feature after all) to split the model across both GPUs. So, doing some quick napkin math, with a 7 billion parameter model we’d expect 7 billion parameters x 4 bits/parameter / 2 GPUs = ~1.75GB of weights per GPU.</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>It’s actually about 3.72GiB (see <span class="in">`reserved_after_model_wrap`</span>). There aren’t exactly 7 billion parameters, we keep some in full precision, there are the LoRA adapter weights, memory reservation overhead… and then once we begin training there are gradients and activations to keep track of too, intermediate values that need to be stored during certain computations, optimizer state for all of the trainable (LoRA) parameters… In total, the command above shows a peak memory usage of 4.98GiB during training.</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>Next let’s increase the context length from 512 tokens to 2048 (<span class="in">`--context_length 2048`</span>). There are internal activations for each token in the sequence, so more tokens → more GPU memory used. In this case, the peak memory per GPU goes from 4.98GiB to 5.21GiB. Training also takes longer: 800 seconds vs 550.</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>| Train Type | Context Length | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>| :--------: | :------------: | :---------------: | :------: |</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |      512       |       4.98        |  1,082   |</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |      2048      |       5.21        |  1,564   |</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>*Llama-2 7B with a batch size of one*</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>What if we weren’t using QLoRA? Keeping the weights in 16-bit precision and doing regular LoRA means we can skip the time spent dequantizing the base weights BUT we need more memory to store the weights (~7GB per GPU) and copying parameters from one GPU to another will be slower (since there is more data to transfer). On my system, the data transfer speed outweighs the gain from avoiding quantization, and the LoRA equivalents run slower than their QLoRA counterparts in this case:</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>| Train Type | Context Length | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>| :--------: | :------------: | :---------------: | :------: |</span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>|    LoRA    |      512       |       10.24       |  2,597   |</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>|    LoRA    |      2048      |       10.22       |  3,090   |</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>*Llama-2 7B with a batch size of one*</span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>NB: While the reported peak reserved memory for both 512 and 2048 context length is roughly the same, the peak allocated memory is 8.28 GiB vs 9.16 GiB, respectively. Which matches our intuition that a smaller context length should use less memory.</span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>None of these runs are close to using the 24GB of VRAM I have available, so let’s scale up the batch size to fill that up a little more:</span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>| Train Type | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>| :--------: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |     4      |       11.22       |   998    |</span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |     10     |       20.97       |   936    |</span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>|    LoRA    |     4      |       16.14       |  1,366   |</span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>|    LoRA    |     6      |       21.35       |  1,199   |</span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>*Llama-2 7B with Context Length of 2048*</span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>Using a larger batch size results in faster training overall. You still have to do the same amount of computation per sample, but running them through in batches lets you save time by transferring the weights back and forth fewer times in total. Notice also that by using less memory for model weights QLoRA enables a larger max batch size, giving it an extra speed advantage over the standard LoRA version.</span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>Now, we mentioned transferring the weights between GPUs was slow on my machine, with an older motherboard and slow PCI lanes. Given that, we might reasonably ask if FSDP is even required in this case since we could fit the full model (quantized OR unquantized) in the VRAM of a single GPU. This is a valid point, and we can test it out by specifying <span class="in">`“ddp”`</span> as the sharding strategy<span class="ot">[^ddp]</span>, which keeps a full copy of the weights on each GPU:</span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a><span class="ot">[^ddp]: </span>This is still using FSDP, but in distributed data parallel mode. Not DistributedDataParallel.</span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a>| Train Type | DDP  | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a>| :--------: | :--: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a>|   QLoRA    | True |     8      |       20.94       |   875    |</span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a>|    LoRA    | True |     4      |       22.04       |   881    |</span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a>*Llama-2 7B with Context Length of 2048*</span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true" tabindex="-1"></a>In the QLoRA case, we now have the full (quantized) weights on each GPU, using more VRAM than with FSDP. Because we don’t have to transfer the weights between GPUs, only gradients, training finishes a little faster than the FSDP case. Even though we use a batch size of 8 vs 10. For LoRA, each GPU has 14GB* of weights and thus much less room for everything else, necessitating a lower batch size of 4 but still finishing much faster than the FSDP version.</span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a>We have our first lesson. If the model is small enough that the weights aren’t dominating your VRAM usage, you may be better off with DDP instead of FSDP. As we move to larger models, the larger batch sizes enabled by sharding the model across multiple GPUs will outweigh the communication overhead.</span>
+<span id="cb2-80"><a href="#cb2-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-81"><a href="#cb2-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-82"><a href="#cb2-82" aria-hidden="true" tabindex="-1"></a><span class="fu">### What About CPU Offloading?</span></span>
+<span id="cb2-83"><a href="#cb2-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-84"><a href="#cb2-84" aria-hidden="true" tabindex="-1"></a>Now let’s jump up to a larger model: Yi 34B. Napkin math suggests with QLoRA+FSDP we should expect ~17GB of weights per GPU, leaving enough room on my 24GB cards for a batch size of 1 or 2 at most. But there’s another option: CPU offloading (<span class="in">`--use_cpu_offload true`</span>) stores the weights in CPU RAM instead, loading them into each GPU a layer at a time as needed. This leaves the GPU RAM free for activations, gradients etc and allows us to use a batch size of 4 instead. In this example, the extra communication overhead of CPU offloading is offset by the higher batch size it enables and we end up with a slightly faster training run overall:</span>
+<span id="cb2-85"><a href="#cb2-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-86"><a href="#cb2-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-87"><a href="#cb2-87" aria-hidden="true" tabindex="-1"></a>| Train Type | CPU Offload | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-88"><a href="#cb2-88" aria-hidden="true" tabindex="-1"></a>| :--------: | :---------: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-89"><a href="#cb2-89" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    False    |     2      |       23.05       |  5,041   |</span>
+<span id="cb2-90"><a href="#cb2-90" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     |     4      |       22.98       |  4,830   |</span>
+<span id="cb2-91"><a href="#cb2-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-92"><a href="#cb2-92" aria-hidden="true" tabindex="-1"></a>*Yi 34B with Context Length of 2048*</span>
+<span id="cb2-93"><a href="#cb2-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-94"><a href="#cb2-94" aria-hidden="true" tabindex="-1"></a>In cases where you have faster interconnect between cards (NVLink, for example) the non-offloading case may win out, but it’s interesting how comparable these are - my assumption was that having the weights on the CPU and copying them over would be *far* slower. On a cloud machine with slower RAM and a wimpy CPU we did see dramatic slowdowns where CPU offloading was many times slower, so YMMV. But the fact that it works reasonably fast on my machine is encouraging, since it does spark the inevitable question: “**can we go bigger?**”</span>
+<span id="cb2-95"><a href="#cb2-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-96"><a href="#cb2-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-97"><a href="#cb2-97" aria-hidden="true" tabindex="-1"></a><span class="fu">### Llama 70B</span></span>
+<span id="cb2-98"><a href="#cb2-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-99"><a href="#cb2-99" aria-hidden="true" tabindex="-1"></a>When I first tried loading and training a 70B model the script crashed and my hopes fell. Then I spotted an issue: my 128GB of CPU RAM was completely filling up right at the start of training. I created a 10GB swapfile, which is a part of the disk that is treated like RAM when the regular system RAM gets filled. This allowed the system to get over the initial spike and start training:</span>
+<span id="cb2-100"><a href="#cb2-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-101"><a href="#cb2-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-102"><a href="#cb2-102" aria-hidden="true" tabindex="-1"></a>| Train Type | CPU Offload | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-103"><a href="#cb2-103" aria-hidden="true" tabindex="-1"></a>| :--------: | :---------: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-104"><a href="#cb2-104" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     |     2      |       14.92       |  11,795  |</span>
+<span id="cb2-105"><a href="#cb2-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-106"><a href="#cb2-106" aria-hidden="true" tabindex="-1"></a>*Llama-2 70B with Context Length of 2048*</span>
+<span id="cb2-107"><a href="#cb2-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-108"><a href="#cb2-108" aria-hidden="true" tabindex="-1"></a>It’s slower than the smaller models (nearly 10x slower than the 7B model, at nearly 50 seconds per batch) but that’s not bad considering that 70 BILLION parameters are copied to the GPUs each step! And with activation offloading (<span class="in">`--use_activation_cpu_offload True`</span>) the total allocated memory is low enough that training on a 16GB GPU could be possible in theory.</span>
+<span id="cb2-109"><a href="#cb2-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-110"><a href="#cb2-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-111"><a href="#cb2-111" aria-hidden="true" tabindex="-1"></a><span class="fu">## Case Study: A Dual 4090 “Budget Workstation”</span></span>
+<span id="cb2-112"><a href="#cb2-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-113"><a href="#cb2-113" aria-hidden="true" tabindex="-1"></a>We ran a subset of the tests on a dual 4090 “budget workstation” with 128GB of CPU RAM<span class="ot">[^budget]</span>. Like the 3090 case study, the 4090s don’t have NVLink. But both GPUs have full PCIe v4 x16 lanes which should reduce the FSDP transfer overhead. The 4090s peaked at 400 watts per card<span class="ot">[^4090-power]</span>.</span>
+<span id="cb2-114"><a href="#cb2-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-115"><a href="#cb2-115" aria-hidden="true" tabindex="-1"></a><span class="ot">[^budget]: </span>The total workstation cost is less than a single A6000 Ada. Hence a budget workstation.</span>
+<span id="cb2-116"><a href="#cb2-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-117"><a href="#cb2-117" aria-hidden="true" tabindex="-1"></a><span class="ot">[^4090-power]: </span>Power usage peaked at 400 watts for the 7B and 34B models, and 375 watts for the 70B model.</span>
+<span id="cb2-118"><a href="#cb2-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-119"><a href="#cb2-119" aria-hidden="true" tabindex="-1"></a><span class="fu">### Llama-2 7B</span></span>
+<span id="cb2-120"><a href="#cb2-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-121"><a href="#cb2-121" aria-hidden="true" tabindex="-1"></a>At the 7 billion parameter scale, the maximum performance difference between LoRA and FSDP methods is ~10 percent.</span>
+<span id="cb2-122"><a href="#cb2-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-123"><a href="#cb2-123" aria-hidden="true" tabindex="-1"></a>| Train Type | CPU Offload |  DDP  | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-124"><a href="#cb2-124" aria-hidden="true" tabindex="-1"></a>| :--------: | :---------: | :---: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-125"><a href="#cb2-125" aria-hidden="true" tabindex="-1"></a>|    LoRA    |    False    | True  |     4      |       22.04       |   437    |</span>
+<span id="cb2-126"><a href="#cb2-126" aria-hidden="true" tabindex="-1"></a>|    LoRA    |    False    | False |     6      |       21.35       |   481    |</span>
+<span id="cb2-127"><a href="#cb2-127" aria-hidden="true" tabindex="-1"></a>|    LoRA    |    True     | False |     10     |       22.69       |   482    |</span>
+<span id="cb2-128"><a href="#cb2-128" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    False    | True  |     8      |       20.94       |   450    |</span>
+<span id="cb2-129"><a href="#cb2-129" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    False    | False |     10     |       20.97       |   466    |</span>
+<span id="cb2-130"><a href="#cb2-130" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     | False |     12     |       22.38       |   464    |</span>
+<span id="cb2-131"><a href="#cb2-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-132"><a href="#cb2-132" aria-hidden="true" tabindex="-1"></a>*Llama-2 7B with Context Length of 2048*</span>
+<span id="cb2-133"><a href="#cb2-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-134"><a href="#cb2-134" aria-hidden="true" tabindex="-1"></a>This is encouraging, as there is only a small performance hit when trading maximum training speed verses maximum tokens. It also suggests that the slowdown due to using PCIe instead of NVLink is manageable when training large enough models.</span>
+<span id="cb2-135"><a href="#cb2-135" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-136"><a href="#cb2-136" aria-hidden="true" tabindex="-1"></a><span class="fu">### Yi 34B</span></span>
+<span id="cb2-137"><a href="#cb2-137" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-138"><a href="#cb2-138" aria-hidden="true" tabindex="-1"></a>With a full PCIe lanes and FSDP’s overlapping of compute and next layer transfers, there is almost no difference between QLoRA and QLoRA with CPU Offloading. The larger batch size is ~0.5 percent faster.</span>
+<span id="cb2-139"><a href="#cb2-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-140"><a href="#cb2-140" aria-hidden="true" tabindex="-1"></a>| Train Type | CPU Offload | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-141"><a href="#cb2-141" aria-hidden="true" tabindex="-1"></a>| :--------: | :---------: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-142"><a href="#cb2-142" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    False    |     2      |       23.05       |   2,072  |</span>
+<span id="cb2-143"><a href="#cb2-143" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     |     4      |       22.98       |   2,061  |</span>
+<span id="cb2-144"><a href="#cb2-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-145"><a href="#cb2-145" aria-hidden="true" tabindex="-1"></a>*Yi 34B with Context Length of 2048*</span>
+<span id="cb2-146"><a href="#cb2-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-147"><a href="#cb2-147" aria-hidden="true" tabindex="-1"></a><span class="fu">### Llama-2 70B</span></span>
+<span id="cb2-148"><a href="#cb2-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-149"><a href="#cb2-149" aria-hidden="true" tabindex="-1"></a>Increasing from a 34B model to a 70B model shows near linear scaling, with a ~6 percent slowdown per sample.</span>
+<span id="cb2-150"><a href="#cb2-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-151"><a href="#cb2-151" aria-hidden="true" tabindex="-1"></a>| Train Type | CPU Offload | Batch Size | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-152"><a href="#cb2-152" aria-hidden="true" tabindex="-1"></a>| :--------: | :---------: | :--------: | :---------------: | :------: |</span>
+<span id="cb2-153"><a href="#cb2-153" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     |     2      |       14.92       |  4,399   |</span>
+<span id="cb2-154"><a href="#cb2-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-155"><a href="#cb2-155" aria-hidden="true" tabindex="-1"></a>*Llama-2 70B with Context Length of 2048*</span>
+<span id="cb2-156"><a href="#cb2-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-157"><a href="#cb2-157" aria-hidden="true" tabindex="-1"></a><span class="fu">### Bonus: Mistral 7B</span></span>
+<span id="cb2-158"><a href="#cb2-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-159"><a href="#cb2-159" aria-hidden="true" tabindex="-1"></a>Mistral 7B v0.2 Base expanded the context window of the base 7B parameter model to 32K tokens. 24GB of memory per GPU isn't quite enough to finetune at the full context length even using QLoRA, but we can manage a respectable 24K tokens.</span>
+<span id="cb2-160"><a href="#cb2-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-161"><a href="#cb2-161" aria-hidden="true" tabindex="-1"></a>| Train Type | CPU Offload | Batch Size | Context Length | Peak Memory (GiB) | Time (s) |</span>
+<span id="cb2-162"><a href="#cb2-162" aria-hidden="true" tabindex="-1"></a>| :--------: | :---------: | :--------: | :------------: | :---------------: | :------: |</span>
+<span id="cb2-163"><a href="#cb2-163" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     |     12     |     2,048      |       22.54       |   483    |</span>
+<span id="cb2-164"><a href="#cb2-164" aria-hidden="true" tabindex="-1"></a>|   QLoRA    |    True     |     1      |     24,576     |       22.54       |  7,809   |</span>
+<span id="cb2-165"><a href="#cb2-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-166"><a href="#cb2-166" aria-hidden="true" tabindex="-1"></a>*Mistral 7B v0.2 Base*</span>
+<span id="cb2-167"><a href="#cb2-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-168"><a href="#cb2-168" aria-hidden="true" tabindex="-1"></a>While the tokens per batch is the same at 24,576, increasing the context length from 2,048 to 24,576 reduces the training speed from 2,200 tokens/second to 1,615 tokens/second.</span>
+<span id="cb2-169"><a href="#cb2-169" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-170"><a href="#cb2-170" aria-hidden="true" tabindex="-1"></a><span class="fu">## Case Study: Conclusions</span></span>
+<span id="cb2-171"><a href="#cb2-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-172"><a href="#cb2-172" aria-hidden="true" tabindex="-1"></a>A priori, we expected the dual 4090s to be significantly faster than our dual 3090 test case, in part due to the increased generational performance but mostly due to the faster data transfer speed from full x16 PCIe lanes.</span>
+<span id="cb2-173"><a href="#cb2-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-174"><a href="#cb2-174" aria-hidden="true" tabindex="-1"></a>Our results confirmed this expectation, highlighting the importance of good multi-GPU interconnect. If you have two 3090s and a non-workstation motherboard, you’ll want NVLink. If you have two 4090s, you’ll want a workstation motherboard that can provide full x16 PCIe lanes to both GPUs.</span>
+<span id="cb2-175"><a href="#cb2-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-176"><a href="#cb2-176" aria-hidden="true" tabindex="-1"></a>These results are exciting if you already own a dual-GPU system, but now let’s take a step back and consider whether this still makes sense given the other hardware configurations available in the cloud.</span>
+<span id="cb2-177"><a href="#cb2-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-178"><a href="#cb2-178" aria-hidden="true" tabindex="-1"></a><span class="fu">## Recommendations for Different Hardware Configurations</span></span>
+<span id="cb2-179"><a href="#cb2-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-180"><a href="#cb2-180" aria-hidden="true" tabindex="-1"></a>Let’s consider a number of different hardware configurations and see which gives the best bang-per-buck performance for fine-tuning a 70B model. For each setup we’ve tried to find the fastest possible combination of settings capable of training on context length 2048 with an effective batch size of 32 (or the closest we could get).</span>
+<span id="cb2-181"><a href="#cb2-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-182"><a href="#cb2-182" aria-hidden="true" tabindex="-1"></a>|  Accelerator   | GPUs | CPU+Activation Offload | Batch Size | Time (s) | Ballpark Cost |</span>
+<span id="cb2-183"><a href="#cb2-183" aria-hidden="true" tabindex="-1"></a>| :------------: | :--: | :--------------------: | :--------: | :------: | ------------- |</span>
+<span id="cb2-184"><a href="#cb2-184" aria-hidden="true" tabindex="-1"></a>|   A5000 24GB   |  2   |          True          |     2      |  9,688   | $2.37 - $4.14 |</span>
+<span id="cb2-185"><a href="#cb2-185" aria-hidden="true" tabindex="-1"></a>|   A5000 24GB   |  4   |         False          |     1      |  4,829   | $2.36 - $4.13 |</span>
+<span id="cb2-186"><a href="#cb2-186" aria-hidden="true" tabindex="-1"></a>|   A5000 24GB   |  8   |         False          |     1      |  2,613   | $2.55 - $4.47 |</span>
+<span id="cb2-187"><a href="#cb2-187" aria-hidden="true" tabindex="-1"></a>| A6000 Ada 48GB |  2   |         False          |     2      |  5,867   | $3.72 - $5.22 |</span>
+<span id="cb2-188"><a href="#cb2-188" aria-hidden="true" tabindex="-1"></a>| A6000 Ada 48GB |  4   |         False          |     3      |  2,904   | $3.68 - $5.16 |</span>
+<span id="cb2-189"><a href="#cb2-189" aria-hidden="true" tabindex="-1"></a>| A100 40GB SMX  |  2   |         False          |     1      |  3,277   | $3.28 - $3.75 |</span>
+<span id="cb2-190"><a href="#cb2-190" aria-hidden="true" tabindex="-1"></a>| A100 40GB SMX  |  4   |         False          |     4      |  1,266   | $2.53 - $2.90 |</span>
+<span id="cb2-191"><a href="#cb2-191" aria-hidden="true" tabindex="-1"></a>| A100 40GB SMX  |  8   |         False          |     4      |   672    | $2.69 - $3.08 |</span>
+<span id="cb2-192"><a href="#cb2-192" aria-hidden="true" tabindex="-1"></a>| H100 80GB SXM  |  4   |         False          |     8      |   667    | $3.48 - $3.53 |</span>
+<span id="cb2-193"><a href="#cb2-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-194"><a href="#cb2-194" aria-hidden="true" tabindex="-1"></a>*Llama-2 70B QLoRA with Context Length of 2048 on Select Accelerators*</span>
+<span id="cb2-195"><a href="#cb2-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-196"><a href="#cb2-196" aria-hidden="true" tabindex="-1"></a>NB: Ballpark Cost is an estimated range of training 1,024 samples at a context length of 2,048. Prices from <span class="co">[</span><span class="ot">Cloud GPUs</span><span class="co">](https://cloud-gpus.com/)</span> are used. Exact numbers will vary by provider and depend on availability.</span>
+<span id="cb2-197"><a href="#cb2-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-198"><a href="#cb2-198" aria-hidden="true" tabindex="-1"></a>On a machine with four or eight A5000s, CPU offloading was slower despite allowing us to use double the batch size. This is a different outcome to the 2x3090 example on a 34B model, where CPU offloading had a slight edge. The difference likely comes down to the different transfer speeds CPU-&gt;GPU and GPU-&gt;GPU: copying parameters between GPUs with fast interconnect is faster than transferring them from the CPU RAM to all the GPUs on these machines.</span>
+<span id="cb2-199"><a href="#cb2-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-200"><a href="#cb2-200" aria-hidden="true" tabindex="-1"></a>It’s interesting to compare the time here of 16 minutes on eight A5000s with the dual 3090 example from earlier. The training is ~4.6X faster, but the machine is ~6X more expensive per hour<span class="ot">[^per-hour]</span>. And of course if you already own the 3090s then the longer wait might look like an even better deal.</span>
+<span id="cb2-201"><a href="#cb2-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-202"><a href="#cb2-202" aria-hidden="true" tabindex="-1"></a><span class="ot">[^per-hour]: </span>4X-10X depending on where you find your 3090s.</span>
+<span id="cb2-203"><a href="#cb2-203" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-204"><a href="#cb2-204" aria-hidden="true" tabindex="-1"></a>This trend holds for the rest of the examples too. Using a higher number of more powerful GPUs speeds things up as you’d expect, but also costs more, such that the total training cost ends up in the same range across the different setups we tested.</span>
+<span id="cb2-205"><a href="#cb2-205" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-206"><a href="#cb2-206" aria-hidden="true" tabindex="-1"></a>One final interesting thing we noticed when testing: for the lower-end configurations QLoRA + FSDP was either the fastest option or in some cases the only option, and training speed was bandwidth-bound. Once we moved to the H100 system with fast interconnect and 80GB memory per card, we finally hit the point where compute was the limiting factor. Changing the batch size from 8 to 12 made little difference, as did switching from QLoRA to LoRA - the extra time spent transferring data didn't matter since it was happening while the computation was being done, with the latter being the bottlekneck.</span>
+<span id="cb2-207"><a href="#cb2-207" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-208"><a href="#cb2-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-209"><a href="#cb2-209" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Guide for Optimal Training Speed</span></span>
+<span id="cb2-210"><a href="#cb2-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-211"><a href="#cb2-211" aria-hidden="true" tabindex="-1"></a>Here is a practical step-by-step guide to find the optimal FSDP training configuration which we also followed during the experiments above. We use QLoRA which already saves a significant amount of memory by reducing the model size via quantization, and a lot more by limiting the trainable parameters (~1-2%) with LoRA. We also use backward prefetching (<span class="co">[</span><span class="ot">BACKWARD_PRE</span><span class="co">](https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.BackwardPrefetch)</span>) by default to overlap computation and communication as much as possible, which also comes with an increased memory usage. You can also experiment with other prefetch options: BACKWARD_POST or None to tradeoff memory and speed.</span>
+<span id="cb2-212"><a href="#cb2-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-213"><a href="#cb2-213" aria-hidden="true" tabindex="-1"></a>It is recommended to have at least two GPUs for this guide to make sense as it leverages FSDP sharding strategies.</span>
+<span id="cb2-214"><a href="#cb2-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-215"><a href="#cb2-215" aria-hidden="true" tabindex="-1"></a>Follow the steps below to find the optimal configuration for your own problem and hardware:</span>
+<span id="cb2-216"><a href="#cb2-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-217"><a href="#cb2-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-218"><a href="#cb2-218" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Vanilla Start**:</span>
+<span id="cb2-219"><a href="#cb2-219" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>We start with a batch size of 1, sequence length of 2048 (problem dependent) and disable all the memory saving options.</span>
+<span id="cb2-220"><a href="#cb2-220" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>This configuration requires the most memory but potentially the fastest/cheapest one.</span>
+<span id="cb2-221"><a href="#cb2-221" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>This will use DDP (Distributed Data Parallel).</span>
+<span id="cb2-222"><a href="#cb2-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-223"><a href="#cb2-223" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Try [gradient checkpointing](https://pytorch.org/docs/stable/checkpoint.html#torch-utils-checkpoint)**:</span>
+<span id="cb2-224"><a href="#cb2-224" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>Next, we can try gradient checkpointing to save memory.</span>
+<span id="cb2-225"><a href="#cb2-225" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>Gradient checkpointing is a technique that allows the model to avoid storing intermediate activations during the backward pass by recomputing them.</span>
+<span id="cb2-226"><a href="#cb2-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-227"><a href="#cb2-227" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Try [SHARD_GRAD_OP](https://pytorch.org/docs/stable/checkpoint.html#torch-utils-checkpoint)**:</span>
+<span id="cb2-228"><a href="#cb2-228" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>If DDP with gradient checkpointing didn’t work we can try SHARD_GRAD_OP<span class="ot">[^shard-grad]</span> next.</span>
+<span id="cb2-229"><a href="#cb2-229" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>Shard-grad-op is a technique that allows the model to split the gradients and optimizer states across multiple GPUs.</span>
+<span id="cb2-230"><a href="#cb2-230" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>This can reduce memory usage on each GPU, but it can also increase communication overhead and training time.</span>
+<span id="cb2-231"><a href="#cb2-231" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>You can first try without gradient checkpointing and see if it trains without OOM. If not you can set it to true as well.</span>
+<span id="cb2-232"><a href="#cb2-232" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-233"><a href="#cb2-233" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**Try [FULL_SHARD](https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.ShardingStrategy)**:</span>
+<span id="cb2-234"><a href="#cb2-234" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>If SHARD_GRAD_OP with gradient checkpointing didn’t work we can try FULL_SHARD<span class="ot">[^full-shard]</span> next.</span>
+<span id="cb2-235"><a href="#cb2-235" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>Full-sharding is a technique that allows the model to split the model parameters, gradients and optimizer states across multiple GPUs.</span>
+<span id="cb2-236"><a href="#cb2-236" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>This can significantly reduce memory usage on each GPU, but it can also increase communication overhead and training time.</span>
+<span id="cb2-237"><a href="#cb2-237" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>Similarly, you can first try without gradient checkpointing and see if it trains without OOM. If not you can set it to true as well.</span>
+<span id="cb2-238"><a href="#cb2-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-239"><a href="#cb2-239" aria-hidden="true" tabindex="-1"></a><span class="ss">5. </span>**Try CPU Offloading**:</span>
+<span id="cb2-240"><a href="#cb2-240" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>If FULL_SHARD with gradient checkpointing didn’t work we can try cpu offloading next.</span>
+<span id="cb2-241"><a href="#cb2-241" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>FSDP’s CPU Offloading moves model parameters and gradients to the CPU when they are not involved in computation.</span>
+<span id="cb2-242"><a href="#cb2-242" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>This can reduce memory usage on the GPU, but it can also increase training time due to transfers between GPU and CPU.</span>
+<span id="cb2-243"><a href="#cb2-243" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>At this point you’ve so far tried both full sharding and gradient checkpointing but still faced OOM issues.</span>
+<span id="cb2-244"><a href="#cb2-244" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-245"><a href="#cb2-245" aria-hidden="true" tabindex="-1"></a><span class="ss">6. </span>**Try [Activation offloading](https://github.com/pytorch/pytorch/blob/2e02e1efad957b86dbcc5b64748e03acfb8d330c/torch/distributed/algorithms/_checkpoint/checkpoint_wrapper.py#L173)**:</span>
+<span id="cb2-246"><a href="#cb2-246" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>Activation offloading is a technique that allows the model to move some activations from the GPU to the CPU, and transfer them back to the GPU when needed.</span>
+<span id="cb2-247"><a href="#cb2-247" aria-hidden="true" tabindex="-1"></a><span class="ss">    * </span>This will reduce memory usage on the GPU, increase memory usage on the CPU and have additional transfers between CPU and GPU.</span>
+<span id="cb2-248"><a href="#cb2-248" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-249"><a href="#cb2-249" aria-hidden="true" tabindex="-1"></a><span class="ot">[^shard-grad]: </span>If using multi-node training you can use _HYBRID_SHARD_ZERO2 (--sharding_strategy hybrid_shard_grad_op) to apply SHARD_GRAD_OP strategy within a node and replicate it across nodes.</span>
+<span id="cb2-250"><a href="#cb2-250" aria-hidden="true" tabindex="-1"></a><span class="ot">[^full-shard]: </span>If using multi-node training you can use HYBRID_SHARD (--sharding_strategy hybrid_full_shard) to apply FULL_SHARD strategy within a node and replicate it across nodes.</span>
+<span id="cb2-251"><a href="#cb2-251" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-252"><a href="#cb2-252" aria-hidden="true" tabindex="-1"></a>If you are still facing out-of-memory errors after trying all the steps above then you might need to reduce the sequence length if your task allows, find more GPUs or find GPUs with more memory, and repeat the steps again.</span>
+<span id="cb2-253"><a href="#cb2-253" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-254"><a href="#cb2-254" aria-hidden="true" tabindex="-1"></a>Once a setup that can train with a batch size of 1 is found, it is recommended to increase the batch size leaving some GPU memory free to avoid memory thrashing. This can help with training speed and avoid out-of-memory errors.</span>
+<span id="cb2-255"><a href="#cb2-255" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-256"><a href="#cb2-256" aria-hidden="true" tabindex="-1"></a>After finding the optimal configuration you can give the next step command a try with a higher batch size and see if it increases the throughput and reduces the training time. For example, imagine you are able to train using DDP (step 1). You can also try with gradient checkpointing (step 2) with a larger batch size. There is a chance that this might increase the overall throughput compared to not using gradient checkpointing and result in a faster training.</span>
+<span id="cb2-257"><a href="#cb2-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-258"><a href="#cb2-258" aria-hidden="true" tabindex="-1"></a><span class="fu">## Final Thoughts</span></span>
+<span id="cb2-259"><a href="#cb2-259" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-260"><a href="#cb2-260" aria-hidden="true" tabindex="-1"></a>Benchmarking is always complicated: hardware varies between providers, different versions of different libraries introduce hidden optimizations or bottlenecks, and subtle differences can cause dramatic speedups.</span>
+<span id="cb2-261"><a href="#cb2-261" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-262"><a href="#cb2-262" aria-hidden="true" tabindex="-1"></a>In this post we’ve tried to give recommendations for common use-cases which we hope will be useful in informing further experimentation, especially as FSDP+QLoRA support is added to more frameworks and the community explores this frontier further. We've also shown just how many more options there are for fine-tuning these large models now that we have these techniques at our disposal.</span>
+<span id="cb2-263"><a href="#cb2-263" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-264"><a href="#cb2-264" aria-hidden="true" tabindex="-1"></a><span class="fu">## Authors</span></span>
+<span id="cb2-265"><a href="#cb2-265" aria-hidden="true" tabindex="-1"></a>Jonathan Whitaker</span>
+<span id="cb2-266"><a href="#cb2-266" aria-hidden="true" tabindex="-1"></a>Benjamin Warner</span>
+<span id="cb2-267"><a href="#cb2-267" aria-hidden="true" tabindex="-1"></a>Kerem Turgutlu</span>
+<span id="cb2-268"><a href="#cb2-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-269"><a href="#cb2-269" aria-hidden="true" tabindex="-1"></a><span class="fu">## Additional References:</span></span>
+<span id="cb2-270"><a href="#cb2-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-271"><a href="#cb2-271" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span><span class="co">[</span><span class="ot">https://pytorch.org/docs/stable/fsdp.html</span><span class="co">](https://pytorch.org/docs/stable/fsdp.html)</span></span>
+<span id="cb2-272"><a href="#cb2-272" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span><span class="co">[</span><span class="ot">https://medium.com/pytorch/training-a-1-trillion-parameter-model-with-pytorch-fully-sharded-data-parallel-on-aws-3ac13aa96cff</span><span class="co">](https://medium.com/pytorch/training-a-1-trillion-parameter-model-with-pytorch-fully-sharded-data-parallel-on-aws-3ac13aa96cff)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+
+
+
+</body></html>

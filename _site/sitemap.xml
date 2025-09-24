@@ -1,27 +1,63 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://creative-wisp-f08a1b.netlify.app/fsdp-qdora.html</loc>
-    <lastmod>2025-09-18T14:35:14.544Z</lastmod>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp-qdora.html</loc>
+    <lastmod>2025-09-24T02:49:02.641Z</lastmod>
   </url>
   <url>
-    <loc>https://creative-wisp-f08a1b.netlify.app/index.html</loc>
-    <lastmod>2025-09-18T14:35:11.940Z</lastmod>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/index.html</loc>
+    <lastmod>2025-09-24T02:49:00.121Z</lastmod>
   </url>
   <url>
-    <loc>https://creative-wisp-f08a1b.netlify.app/fsdp_ucg.html</loc>
-    <lastmod>2025-09-18T14:35:11.012Z</lastmod>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/test.html</loc>
+    <lastmod>2025-09-24T02:48:58.797Z</lastmod>
   </url>
   <url>
-    <loc>https://creative-wisp-f08a1b.netlify.app/fsdp_qdora_ucg_v1.html</loc>
-    <lastmod>2025-09-18T14:35:10.504Z</lastmod>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qdora_ucg_v1.html</loc>
+    <lastmod>2025-09-24T02:48:58.025Z</lastmod>
   </url>
   <url>
-    <loc>https://creative-wisp-f08a1b.netlify.app/test.html</loc>
-    <lastmod>2025-09-18T14:35:11.300Z</lastmod>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/nbs/HQQ.html</loc>
+    <lastmod>2025-09-24T02:48:56.337Z</lastmod>
   </url>
   <url>
-    <loc>https://creative-wisp-f08a1b.netlify.app/sd_ulmfit.html</loc>
-    <lastmod>2025-09-18T14:35:13.892Z</lastmod>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/nbs/02-qlora-memeff-loading.html</loc>
+    <lastmod>2025-09-24T02:48:54.673Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/PROFILING.html</loc>
+    <lastmod>2025-09-24T02:48:53.857Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/benchmarks_03_2024.html</loc>
+    <lastmod>2025-09-24T02:48:52.709Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/Converting the State Dict.html</loc>
+    <lastmod>2025-09-24T02:48:53.125Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/nbs/00-profile_lora_qlora.html</loc>
+    <lastmod>2025-09-24T02:48:54.305Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/nbs/00-profile_lora_qlora_hqq.html</loc>
+    <lastmod>2025-09-24T02:48:55.397Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_qlora/nbs/01-ft_benchmarking.html</loc>
+    <lastmod>2025-09-24T02:48:56.945Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/fsdp_ucg.html</loc>
+    <lastmod>2025-09-24T02:48:58.521Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/README_evaluation.html</loc>
+    <lastmod>2025-09-24T02:48:59.421Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fsdp-qdora-ucg.flexiblefunctions.com/sd_ulmfit.html</loc>
+    <lastmod>2025-09-24T02:49:01.885Z</lastmod>
   </url>
 </urlset>
